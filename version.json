@@ -1,0 +1,99 @@
+{
+ "version": "0.3.0",
+ "minShell": "1.0.0",
+ "notes": "Новый монстр, скримеры, вступление, атмосфера шахты, автообновление",
+ "files": {
+  "icon.png": {
+   "sha256": "42e22261b55ed31b9b8a3c4801bf2c6a5037aa770dad0cf410b5285b8cba5ac4",
+   "size": 64313
+  },
+  "index.html": {
+   "sha256": "2a47fb737badb16bb505815761c1308d6678ba76f915f719f6d0aa79b6ea474c",
+   "size": 14979
+  },
+  "fonts/Cormorant-Italic.ttf": {
+   "sha256": "0f48ea6abb2084537854f7174c470991a463b13036309e3b50a81511611c530d",
+   "size": 715644
+  },
+  "fonts/Cormorant.ttf": {
+   "sha256": "b20b7d9626dd956b2c5e558692ad328b1f19e3275e2782db4fa07670d83f35e0",
+   "size": 1195560
+  },
+  "fonts/OFL-Cormorant.txt": {
+   "sha256": "60700d351cac4650c51f3f9db318d2a420f8b45052dba2715eb5fec41f0f6956",
+   "size": 4387
+  },
+  "fonts/OFL-PTMono.txt": {
+   "sha256": "511125dc85198375795fdbc109d088654d3b7f9dbd3ccb7bf93d844aef0b153c",
+   "size": 4448
+  },
+  "fonts/PTMono.ttf": {
+   "sha256": "cbe732b3b8fd211fd986ebdfc9b870ddeca4faab0bb5425fc509b37f9b4ac804",
+   "size": 185912
+  },
+  "lib/three.module.js": {
+   "sha256": "0a3368c165eea773490aec7b77c22de70e3eac288503409256fdbf4d12578416",
+   "size": 1304820
+  },
+  "lib/postprocessing/EffectComposer.js": {
+   "sha256": "d234e578618fa816955ebdc059c049c577e203e650e33cf22bde3f232c29e669",
+   "size": 4651
+  },
+  "lib/postprocessing/MaskPass.js": {
+   "sha256": "328cf7db0da5d9be83ffe39d54b01d5ac1fddf108cc98182ddbb056f5c8b537f",
+   "size": 2231
+  },
+  "lib/postprocessing/OutputPass.js": {
+   "sha256": "32f879d2179087676631c799857a885586b3cdd13b9731bd3b13f06428bd58b7",
+   "size": 2524
+  },
+  "lib/postprocessing/Pass.js": {
+   "sha256": "b3c6128340eaa37e40a6a2f1b738e894c855239417d50959759b34a2b5e89f92",
+   "size": 1706
+  },
+  "lib/postprocessing/RenderPass.js": {
+   "sha256": "6c9b8a539ea16e898f65e4760f14937ef9ea94043bd9842c141e0301f41903e8",
+   "size": 1941
+  },
+  "lib/postprocessing/ShaderPass.js": {
+   "sha256": "3b28a1ee27e0eb96c0eab137a1f442ccf127a926904eced2d51e125ec44af781",
+   "size": 1576
+  },
+  "lib/postprocessing/UnrealBloomPass.js": {
+   "sha256": "3bd23a1097af75c7002d0ffc21a6c14f45c4dd701dbaf737030dfc61fb7c64d9",
+   "size": 12410
+  },
+  "lib/shaders/CopyShader.js": {
+   "sha256": "4e3346db194db56a596cd074e9bdb39fb5eb52040c333e0d29dc4eb1324d3b1d",
+   "size": 571
+  },
+  "lib/shaders/LuminosityHighPassShader.js": {
+   "sha256": "9f4866f9abb2d96fd83eec46ba4bf2165b22155a7a37ff425c0f60eba18007cb",
+   "size": 1147
+  },
+  "lib/shaders/OutputShader.js": {
+   "sha256": "4944cecd49c0d4d1520a4d927bde8a590fd43f041ee913252b9451855a01d0f0",
+   "size": 1490
+  },
+  "js/audio.js": {
+   "sha256": "4384a9ee8d8db97af60ccfbaf810d721d475b1a587e5e21b2e079d0f13f12174",
+   "size": 17568
+  },
+  "js/game.js": {
+   "sha256": "1c0e0a64fff63f1a400402b2bed999585b47e8a289eff2d40ead08ffc2ca3d88",
+   "size": 72270
+  },
+  "js/monster.js": {
+   "sha256": "2a5dd7fd5c662ea348c6899fc68d5fa9ad435a0218b9651390b1792d539dadc6",
+   "size": 18265
+  },
+  "js/net.js": {
+   "sha256": "e7746b0dfc6bb2f9a2d1efc0da53dd9b0079331f287dba78d716be2eb8c4f133",
+   "size": 4624
+  },
+  "js/world.js": {
+   "sha256": "8d2b1a90354d1dbce5cf01e847178058f51bf82d9b667fba151eaeec87f8a725",
+   "size": 26587
+  }
+ }
+}

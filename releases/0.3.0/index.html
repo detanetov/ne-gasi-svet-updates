@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Не гаси свет</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script type="importmap">{ "imports": { "three": "./lib/three.module.js" } }</script>
+<style>
+  @font-face { font-family: Cormorant; src: url(fonts/Cormorant.ttf); font-weight: 300 700; }
+  @font-face { font-family: Cormorant; src: url(fonts/Cormorant-Italic.ttf); font-weight: 300 700; font-style: italic; }
+  @font-face { font-family: PTMono; src: url(fonts/PTMono.ttf); }
+  :root {
+    --ink: #d8d0c2; --dim: rgba(216,208,194,.48); --faint: rgba(216,208,194,.2);
+    --blood: #9a3324; --serif: Cormorant, Georgia, serif; --mono: PTMono, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; color: var(--ink); font-family: var(--mono); user-select: none; -webkit-font-smoothing: antialiased; }
+  canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+
+  /* ---------- экраны ---------- */
+  .screen { position: fixed; inset: 0; z-index: 10; display: none; flex-direction: column; justify-content: flex-end; padding: 0 7vw 11vh;
+    background: linear-gradient(90deg, rgba(0,0,0,.88) 0%, rgba(0,0,0,.62) 32%, rgba(0,0,0,0) 62%); }
+  .screen.on { display: flex; }
+  .screen.solid { background: linear-gradient(90deg, rgba(0,0,0,.92) 0%, rgba(0,0,0,.78) 40%, rgba(0,0,0,.45) 100%); }
+  .screen.center { align-items: center; justify-content: center; padding: 0; background: rgba(0,0,0,.6); }
+
+  h1.title { font-family: var(--serif); font-weight: 500; font-size: clamp(60px, 8vw, 124px); line-height: .86; margin: 0 0 6vh; letter-spacing: -.01em; transition: opacity .05s; }
+  h1.title em { font-style: italic; font-weight: 400; color: var(--dim); }
+  h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(40px, 4.4vw, 64px); line-height: 1; margin: 0 0 4vh; }
+
+  nav { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+  .item { font-family: var(--serif); font-size: 27px; font-weight: 500; color: var(--dim); padding: 3px 0; position: relative; transition: color .12s, padding-left .18s; text-align: left; }
+  .item::before { content: ''; position: absolute; left: 0; top: 50%; width: 0; height: 1px; background: var(--ink); transition: width .18s; }
+  .item:hover, .item.focus { color: var(--ink); padding-left: 30px; }
+  .item:hover::before, .item.focus::before { width: 20px; }
+  .item:disabled { opacity: .35; pointer-events: none; }
+  .item.small { font-size: 21px; }
+  .gap { height: 3vh; }
+
+  .page { max-width: 440px; width: 100%; }
+  .field { margin-bottom: 22px; }
+  .lbl { display: flex; justify-content: space-between; font-size: 12px; color: var(--dim); margin-bottom: 8px; }
+  input[type=text] { width: 100%; background: transparent; border: 0; border-bottom: 1px solid var(--faint); color: var(--ink); font-family: var(--mono); font-size: 20px; padding: 6px 0; outline: none; }
+  input[type=text]:focus { border-bottom-color: var(--ink); }
+  input[type=text]::placeholder { color: var(--faint); }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 16px; background: transparent; margin: 0; }
+  input[type=range]::-webkit-slider-runnable-track { height: 1px; background: var(--faint); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 9px; height: 9px; margin-top: -4px; background: var(--ink); }
+  .opts { display: flex; gap: 18px; flex-wrap: wrap; }
+  .opts button { font-size: 15px; color: var(--dim); padding: 2px 0; border-bottom: 1px solid transparent; }
+  .opts button:hover { color: var(--ink); }
+  .opts button.act { color: var(--ink); border-bottom-color: var(--ink); }
+  .colors { display: flex; gap: 10px; margin-top: 12px; }
+  .colors div { width: 16px; height: 16px; cursor: pointer; outline: 1px solid transparent; outline-offset: 3px; }
+  .colors div.sel { outline-color: var(--ink); }
+  .note { font-size: 13px; line-height: 1.6; color: var(--dim); margin: 0 0 22px; max-width: 420px; }
+  .err { font-size: 13px; color: #c9573f; min-height: 18px; margin-top: 14px; }
+  .code { font-family: var(--mono); font-size: 64px; letter-spacing: .12em; margin: 0 0 8px; user-select: text; }
+  .plist { margin: 18px 0 26px; font-size: 15px; }
+  .plist div { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid rgba(216,208,194,.08); }
+  .plist i { width: 8px; height: 8px; display: inline-block; }
+  .plist small { margin-left: auto; color: var(--dim); font-size: 12px; }
+  .cols { display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 340px); gap: 6vw; align-items: end; }
+  .keys { font-size: 13px; line-height: 2; color: var(--dim); }
+  .keys b { color: var(--ink); font-weight: normal; display: inline-block; min-width: 92px; }
+  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } .keys { display: none; } }
+
+  #corner { position: fixed; right: 3vw; bottom: 3.2vh; z-index: 11; font-size: 12px; color: var(--faint); text-align: right; line-height: 1.8; }
+  #corner button { color: var(--dim); }
+  #corner button:hover { color: var(--ink); }
+  #menuMsg { font-size: 13px; color: #c9573f; margin-top: 18px; min-height: 18px; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; display: none; }
+  #hud.on { display: block; }
+  #cross { position: absolute; left: 50%; top: 50%; width: 3px; height: 3px; margin: -1px; background: rgba(255,255,255,.35); }
+  .bars { position: absolute; left: 3vw; bottom: 4vh; width: 200px; font-size: 11px; color: var(--dim); }
+  .bars .row { display: flex; justify-content: space-between; margin: 12px 0 5px; }
+  .bar { height: 2px; background: rgba(255,255,255,.1); position: relative; }
+  .bar b { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink); }
+  #fuses { position: absolute; right: 3vw; top: 4vh; font-size: 12px; color: var(--dim); text-align: right; }
+  #fuses .dots { margin-top: 8px; display: flex; gap: 6px; justify-content: flex-end; }
+  #fuses .dots i { width: 6px; height: 14px; border: 1px solid rgba(216,208,194,.35); display: block; }
+  #fuses .dots i.on { background: #e08a3a; border-color: #e08a3a; }
+  #obj { position: absolute; top: 4vh; left: 50%; transform: translateX(-50%); font-family: var(--serif); font-style: italic; font-size: 22px; color: rgba(216,208,194,.7); text-shadow: 0 0 6px #000; white-space: nowrap; }
+  #prompt { position: absolute; top: 57%; left: 50%; transform: translateX(-50%); font-size: 14px; text-shadow: 0 0 6px #000; white-space: nowrap; }
+  #prompt .k { color: var(--dim); margin-right: 8px; }
+  #prog { position: absolute; top: 61%; left: 50%; width: 140px; margin-left: -70px; height: 1px; background: rgba(255,255,255,.15); display: none; }
+  #prog b { display: block; height: 100%; background: var(--ink); width: 0; }
+  #team { position: absolute; left: 3vw; top: 4vh; font-size: 13px; }
+  #team div { margin-bottom: 6px; display: flex; gap: 10px; align-items: center; text-shadow: 0 0 6px #000; }
+  #team i { width: 7px; height: 7px; }
+  #team .down { color: #c9573f; }
+  #log { position: absolute; left: 50%; bottom: 13vh; transform: translateX(-50%); text-align: center; font-family: var(--serif); font-size: 21px; text-shadow: 0 0 8px #000; }
+  #log div { animation: fade 5s forwards; margin-top: 2px; }
+  @keyframes fade { 0% { opacity: 0 } 8% { opacity: 1 } 75% { opacity: 1 } 100% { opacity: 0 } }
+  #downed { position: fixed; inset: 0; display: none; z-index: 6; align-items: center; justify-content: center; flex-direction: column; pointer-events: none; background: radial-gradient(ellipse at center, rgba(60,0,0,0) 30%, rgba(60,0,0,.7)); }
+  #downed.on { display: flex; }
+  #downed h3 { font-family: var(--serif); font-weight: 500; font-size: 54px; margin: 0; }
+  #downed p { color: var(--dim); font-size: 14px; }
+  #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 7; }
+  #intro { position: fixed; inset: 0; z-index: 9; background: #000; display: none; flex-direction: column; justify-content: center; padding: 0 12vw; }
+  #intro.on { display: flex; animation: introOut 9s forwards; }
+  #intro p { font-family: var(--serif); font-style: italic; font-size: clamp(22px, 2.3vw, 32px); color: var(--ink); margin: 0 0 18px; opacity: 0; animation: line 1.4s forwards; }
+  #intro small { position: absolute; right: 3vw; bottom: 3.2vh; font-size: 12px; color: var(--faint); }
+  @keyframes line { from { opacity: 0; transform: translateY(4px); } to { opacity: .9; transform: none; } }
+  @keyframes introOut { 0%, 88% { opacity: 1; } 100% { opacity: 0; } }
+  #lockHint { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 8; display: none; font-size: 14px; color: var(--dim); pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div id="cross"></div>
+  <div id="team"></div>
+  <div id="obj"></div>
+  <div id="fuses">щиток<div class="dots"></div></div>
+  <div class="bars">
+    <div class="row"><span>фонарь</span><span id="batTxt">100%</span></div><div class="bar"><b id="bat"></b></div>
+    <div class="row"><span>дыхание</span></div><div class="bar"><b id="sta"></b></div>
+  </div>
+  <div id="prompt"></div>
+  <div id="prog"><b></b></div>
+  <div id="log"></div>
+</div>
+<div id="downed"><h3>Тебя схватили</h3><p id="downedTxt">жди, пока тебя поднимут</p></div>
+<div id="flash"></div>
+<div id="lockHint">нажми, чтобы продолжить</div>
+<div id="intro"></div>
+
+<!-- Главное меню -->
+<div id="menu" class="screen on">
+  <h1 class="title" id="title">Не гаси<br><em>свет</em></h1>
+  <nav>
+    <button class="item" id="bSolo">Одиночная игра</button>
+    <button class="item" id="bHost">Создать комнату</button>
+    <button class="item" id="bJoin">Присоединиться</button>
+    <button class="item" id="bSet">Настройки</button>
+    <button class="item" id="bQuit">Выйти</button>
+  </nav>
+  <div id="menuMsg"></div>
+</div>
+<div id="corner"><button id="bProfile"></button><br><span id="ver"></span></div>
+
+<!-- Комната: создать / войти -->
+<div id="join" class="screen solid">
+  <div class="page">
+    <h2 id="joinTitle">Новая комната</h2>
+    <div class="field opts" style="margin-bottom:26px"><button class="act" id="tNet">через интернет</button><button id="tLan">по IP / локальная сеть</button></div>
+    <div id="joinNet">
+      <p class="note" id="noteNet"></p>
+      <div class="field" id="codeBox"><div class="lbl">код комнаты</div><input type="text" id="code" maxlength="4" placeholder="ABCD" style="text-transform:uppercase;letter-spacing:.3em;font-size:30px"></div>
+    </div>
+    <div id="joinLan" style="display:none">
+      <p class="note" id="noteLan"></p>
+      <div class="field" id="ipBox"><div class="lbl">IP хоста</div><input type="text" id="ip" placeholder="192.168.1.5"></div>
+    </div>
+    <nav>
+      <button class="item" id="bGo">Создать</button>
+      <button class="item small" id="bBack1">Назад</button>
+    </nav>
+    <div class="err" id="joinErr"></div>
+  </div>
+</div>
+
+<!-- Лобби -->
+<div id="lobby" class="screen solid">
+  <div class="page">
+    <div class="lbl" id="lobbyKind">код комнаты</div>
+    <div class="code" id="lobbyCode">----</div>
+    <div class="plist" id="plist"></div>
+    <div class="field" id="hostOpts"><div class="lbl">сложность</div>
+      <div class="opts" id="diffOpts"><button class="act" data-v="0">обычная</button><button data-v="1">кошмар</button></div>
+      <input type="hidden" id="diff" value="0"></div>
+    <p class="note" id="lobbyNote"></p>
+    <nav>
+      <button class="item" id="bStart">Начать</button>
+      <button class="item small" id="bLeave">Выйти из комнаты</button>
+    </nav>
+  </div>
+</div>
+
+<!-- Настройки -->
+<div id="settings" class="screen solid">
+  <div class="cols">
+    <div class="page">
+      <h2>Настройки</h2>
+      <div class="field"><div class="lbl">имя</div><input type="text" id="nick" maxlength="14"><div class="colors" id="colors"></div></div>
+      <div class="field"><div class="lbl"><span>чувствительность мыши</span><span id="sensV"></span></div><input type="range" id="sens" min="0.2" max="3" step="0.05"></div>
+      <div class="field"><div class="lbl"><span>громкость</span><span id="volV"></span></div><input type="range" id="vol" min="0" max="1" step="0.05"></div>
+      <div class="field"><div class="lbl"><span>яркость</span><span id="briV"></span></div><input type="range" id="bri" min="0.6" max="2" step="0.05"></div>
+      <div class="field"><div class="lbl"><span>поле зрения</span><span id="fovV"></span></div><input type="range" id="fov" min="60" max="100" step="1"></div>
+      <div class="field"><div class="lbl">графика <span style="color:var(--faint)">со следующей игры</span></div>
+        <div class="opts" id="qualOpts"><button data-v="low">низкая</button><button data-v="mid">средняя</button><button data-v="high">высокая</button><button data-v="ultra">ультра</button></div>
+        <input type="hidden" id="qual"></div>
+      <nav>
+        <button class="item small" id="bFull">Полный экран</button>
+        <button class="item" id="bSetBack">Готово</button>
+      </nav>
+    </div>
+    <div class="keys">
+      <b>W A S D</b>идти<br>
+      <b>Shift</b>бежать<br>
+      <b>F, ПКМ</b>фонарь<br>
+      <b>E</b>взять, поднять друга<br>
+      <b>Esc</b>пауза<br>
+      <b>F11</b>полный экран
+    </div>
+  </div>
+</div>
+
+<!-- Пауза -->
+<div id="pause" class="screen">
+  <h2>Пауза</h2>
+  <p class="note" id="pauseNote"></p>
+  <nav>
+    <button class="item" id="bResume">Продолжить</button>
+    <button class="item" id="bSet2">Настройки</button>
+    <button class="item" id="bToMenu">В главное меню</button>
+  </nav>
+</div>
+
+<!-- Конец -->
+<div id="end" class="screen solid">
+  <h2 id="endTitle" style="font-size:clamp(52px,6vw,96px)">Вы выбрались</h2>
+  <p class="note" id="endNote"></p>
+  <nav>
+    <button class="item" id="bAgain">Ещё раз</button>
+    <button class="item" id="bEndMenu">В главное меню</button>
+  </nav>
+</div>
+
+<div id="loading" class="screen center"><div style="font-family:var(--serif);font-style:italic;font-size:26px;color:var(--dim)" id="loadTxt">спускаемся</div></div>
+
+<script type="module" src="./js/game.js"></script>
+</body>
+</html>
