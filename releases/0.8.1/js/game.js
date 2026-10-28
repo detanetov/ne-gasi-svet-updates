@@ -503,7 +503,7 @@ function buildGame(seed, opts = {}) {
       frozenT: 0, flT: 0, pathT: 0, field: null, dest: null, lostT: 0, firstSpawn: true, moving: false }
   };
   if (G.run) {
-    G.open = true; resetEpisode(seed);
+    G.open = false; G.need = Math.min(6, 3 + Math.floor(ch / 3)); resetEpisode(seed);
     G.night = pickNight(seed, SAVE.episodes);
     G.tasks = makeTasks(seed, { solo: !!opts.solo, crawlers: CH.crawlers, flares: CH.flares || hasGear('flares') });
     G.stream = { viewers: 0, peak: 0, chatT: 0, donated: 0, lines: [] };
@@ -576,7 +576,7 @@ function handle(m, local = false) {
     case 'up': if (G) applyDown(m.id, false); break;
     case 'revive': if (isHost && G) { const p = m.id === me.id ? { down: G.down } : G.players.get(m.id); if (p && p.down) bc({ t: 'up', id: m.id, by: m.from, host: 1 }); } break;
     case 'esc': if (isHost && G && G.open && !G.over) bc({ t: 'end', win: true, by: m.from, host: 1 }); break;
-    case 'end': if (G && !G.over) { G.blast = !!m.blast; if (m.blast) { G.shake = 2; sound.bang({ x: G.pos.x, y: 2, z: G.pos.z }); } endGame(m.win, m.by); } break;
+    case 'end': if (G && !G.over) { G.blast = !!m.blast; G.dawnLost = !!m.dawn && !m.win; if (m.blast) { G.shake = 2; sound.bang({ x: G.pos.x, y: 2, z: G.pos.z }); } endGame(m.win, m.by); } break;
     case 'drop': if (G && G.world.hangers[m.i]) dropHanger(G.world.hangers[m.i]); break;
     case 'act': if (isHost && G) hostAct(m.s, m.from); break;
     case 'done': if (G) applyDone(m.s, m.by); break;
@@ -749,7 +749,7 @@ function runIntro() {
   const lines = [`«${SAVE.chan}». Выпуск №${SAVE.episodes + 1}.`, `${C.title}, ${C.place}. Три часа ночи.`];
   if (first) lines.push(...C.intro);
   if (G.night && G.night.id !== 'calm') lines.push(`${G.night.name}. ${G.night.text}`);
-  lines.push('У зрителей три задания. Проклятая находка светится фиолетовым. Вернитесь к фургону до рассвета.');
+  lines.push(`Фургон не уедет без материала: нужно найти минимум ${G.need} находки. У зрителей три задания, проклятая находка светится фиолетовым. Успейте до рассвета.`);
   return { title: C.title, place: C.place, intro: lines };
 }
 function playIntro(CH) {
@@ -832,7 +832,7 @@ function applyTook(m) {
   if (it.kind === 'loot') {
     const v = Math.round(it.loot.value * (G.run ? G.CH.mult || 1 : 1 + G.ch * 0.4)); G.loot += v; G.collected++;
     if (m.by === me.id) { log(`${it.loot.name} · ${v} ₽`); sound.pickup(); } else log(`${who}: ${it.loot.name.toLowerCase()} · ${v} ₽`);
-    if (G.run) { taskSet('loot', G.collected); taskSet('allloot', G.collected); }
+    if (G.run) { taskSet('loot', G.collected); taskSet('allloot', G.collected); if (!G.open && G.collected >= G.need) { G.open = true; sound.lift(); log('Материала хватит на выпуск. Фургон ждёт — можно возвращаться', 6000); } }
     if (it.cursed) {
       G.cursedTaken = true; if (it.glow) it.glow.intensity = 0; sound.stinger(); G.shake = 1; log(m.by === me.id ? 'Она почувствовала. Она идёт за тобой' : `${who} взял проклятую вещь. Она идёт`, 6000);
       if (isHost) { const M = G.m; const tp = m.by === me.id ? G.pos : (G.players.get(m.by) || { pos: G.pos }).pos; M.gone = Math.min(M.gone, 1.5); if (!M.g) { M.mode = 1; M.dest = tp.clone(); M.field = null; } }
@@ -1398,7 +1398,7 @@ function renderFuses() {
   const phaseCollect = C && G.collected < C.n;
   $('fuseLbl').textContent = phaseCollect ? C.label : S2 ? S2.label : (C ? C.label : '');
   const n = phaseCollect ? C.n : S2 ? S2.n : C ? C.n : 0, k = phaseCollect ? G.collected : S2 ? G.stDone : G.collected;
-  for (let i = 0; i < n; i++) { const e = document.createElement('i'); if (i < k) e.className = 'on'; d.appendChild(e); }
+  for (let i = 0; i < n; i++) { const e = document.createElement('i'); if (i < k) e.className = 'on'; if (G.run && i === G.need - 1) e.classList.add('need'); d.appendChild(e); }
   $('flareCnt').textContent = G.flares ? `шашки ${G.flares}` : '';
 }
 function renderTeam() {
@@ -1410,7 +1410,8 @@ function renderTeam() {
 function setObjective() {
   if (!G) return; renderFuses();
   const C = G.CH.collect, S2 = G.CH.stations; let t = '';
-  if (G.open) t = G.CH.exitLabel === 'клеть' ? 'Клеть ждёт. Найди её' : `Путь открыт. Найди ${G.CH.exitLabel === 'бадья' ? 'бадью' : G.CH.exitLabel}`;
+  if (G.run) t = G.open ? (G.collected < (G.CH.collect ? G.CH.collect.n : 0) ? 'Можно к фургону. Или собрать ещё' : 'Всё собрано. Назад к фургону') : `Найди находки: ${G.collected} из ${G.need}. Без них фургон не уедет`;
+  else if (G.open) t = G.CH.exitLabel === 'клеть' ? 'Клеть ждёт. Найди её' : `Путь открыт. Найди ${G.CH.exitLabel === 'бадья' ? 'бадью' : G.CH.exitLabel}`;
   else if (C && G.collected < C.n) t = `Найди: ${C.label}`;
   else if (S2) t = S2.kind === 'pump' ? 'Запусти насосы' : S2.kind === 'generator' ? 'Заведи генератор' : S2.kind === 'charge' ? 'Заложи заряды у красных меток' : S2.kind === 'lamp' ? 'Зажги лампады' : 'Найди ворот и подними бадью';
   $('obj').textContent = t;
@@ -1476,7 +1477,7 @@ function endRun(win, by) {
   for (const a of newAch) { SAVE.ach[a.id] = 1; SAVE.money += a.money; SAVE.earned += a.money; }
   saveP();
   const after = depthsOpen();
-  $('resTitle').textContent = lost ? (G.solo ? 'Камера разбита' : 'Тебя не вытащили') : `Выпуск №${SAVE.episodes} загружен`;
+  $('resTitle').textContent = lost ? (G.dawnLost ? 'Рассвет. Материала не хватило' : G.solo ? 'Камера разбита' : 'Тебя не вытащили') : `Выпуск №${SAVE.episodes} загружен`;
   $('resTitle').style.color = lost ? '#c9573f' : '';
   const st = $('resStats'); st.innerHTML = '';
   const stat = (v, l) => { const d = document.createElement('div'); d.innerHTML = '<b></b><span></span>'; d.firstChild.textContent = v; d.lastChild.textContent = l; st.appendChild(d); };
@@ -1756,7 +1757,7 @@ function updateGame(dt, t) {
   if (G.timerEnd && isHost && !G.over && G.time > G.timerEnd) bc({ t: 'end', win: false, blast: 1, host: 1 });
   if (G.run && G.intro <= 0) {
     const left = Math.max(0, G.dawn - G.time); $('clock').textContent = `до рассвета ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
-    if (left <= 0 && isHost && !G.over) bc({ t: 'end', win: true, dawn: 1, host: 1 });
+    if (left <= 0 && isHost && !G.over) bc({ t: 'end', win: !!G.open, dawn: 1, host: 1 });
     if (G.down && hasGear('aid') && !G.usedAid && G.catchAnim <= 0) { G.aidT = (G.aidT || 0) + dt; if (G.aidT > 3) { G.usedAid = true; G.aidT = 0; log('Аптечка. Вставай'); if (isHost) handle({ t: 'revive', id: me.id, from: me.id }, true); else send({ t: 'revive', id: me.id }); } }
   } else $('clock').textContent = '';
   if (isHost) { hostMonster(dt); if (G.crawlers.length) hostCrawlers(dt); }
@@ -1816,7 +1817,8 @@ function updateGame(dt, t) {
       } else G.reviveHold = 0;
     } else G.reviveHold = 0;
     if (G.run && Math.hypot(G.doorPos.x - G.pos.x, G.doorPos.z - G.pos.z) < 1.6) {
-      if (G.time > 20) {
+      if (!G.open) prompt = `<span class="k"></span>фургон закрыт: нужно ещё ${G.need - G.collected} ${G.need - G.collected === 1 ? 'находка' : G.need - G.collected < 5 ? 'находки' : 'находок'}`;
+      else if (G.time > 20) {
         prompt = `<span class="k">[E]</span>сесть в фургон и закончить вылазку`;
         if (keys.KeyE && !G._eEsc) { if (isHost) handle({ t: 'esc', from: me.id }, true); else send({ t: 'esc' }); }
       } else prompt = `<span class="k"></span>фургон. Вернуться можно в любой момент`;
