@@ -1,7 +1,7 @@
 {
- "version": "0.5.0",
+ "version": "0.5.1",
  "minShell": "1.0.0",
- "notes": "Кампания из 7 глав, ползуны, шашки, улучшения, концовки",
+ "notes": "Детальные модели: вагонетки, ящики, Хозяйка, ползуны",
  "files": {
   "icon.png": {
    "sha256": "42e22261b55ed31b9b8a3c4801bf2c6a5037aa770dad0cf410b5285b8cba5ac4",
@@ -100,20 +100,24 @@
    "size": 21611
   },
   "js/game.js": {
-   "sha256": "b871e8576cfc5ed560cea21f2cc78818643cc8c1a595075d865fb8af5733c48b",
-   "size": 107677
+   "sha256": "20476e5a7bc2c38fe43b464452f427bb1a21d4f72709b9804a54c1e9b590fac3",
+   "size": 105301
   },
   "js/monster.js": {
-   "sha256": "15a4eb47bdde64ce48b25c3871ad009c9dfaf3847b6ffc520c8a6971b52f685c",
-   "size": 18271
+   "sha256": "782b27df4b38ccb76614e22b2b3368f31bf84aab9244f9d8070ec0011500692e",
+   "size": 29099
   },
   "js/net.js": {
    "sha256": "e7746b0dfc6bb2f9a2d1efc0da53dd9b0079331f287dba78d716be2eb8c4f133",
    "size": 4624
   },
+  "js/props.js": {
+   "sha256": "839d9ab92def009eac91a47d2cf321ba65b34026947ca764179767144290be24",
+   "size": 12861
+  },
   "js/world.js": {
-   "sha256": "d5503634ea8e02e41d72a42b373d8f4a9966ba6e67f59b2b62293d029db6b2db",
-   "size": 35568
+   "sha256": "8d049531cad3300bfa2597113dc228e77e094deb4de5f8fc6d05f55253555d30",
+   "size": 34646
   }
  }
 }
