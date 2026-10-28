@@ -7,7 +7,7 @@ import { UnrealBloomPass } from '../lib/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../lib/postprocessing/OutputPass.js';
 import { generateMaze, buildWorld, TILE, WALL_H, tileCenter, toTile, bfs, lineOfSight, flashlightCookie } from './world.js';
 import { Sound } from './audio.js';
-import { makeMonster, poseMonster, makeCrawler, poseCrawler } from './monster.js';
+import { makeMonster, poseMonster, makeCrawler, poseCrawler, BEASTS } from './monster.js';
 import { CHAPTERS, PERKS, TOTAL_NOTES, finalEnding } from './chapters.js';
 import { MAPS, mapsOpen } from './maps.js';
 import { pickNight, makeTasks, chatLine, donation, ACH } from './events.js';
@@ -475,8 +475,9 @@ function buildGame(seed, opts = {}) {
   for (const d of [[-1, 0], [1, 0], [0, 1], [0, -1]]) if (maze.isWall(ex + d[0], ey + d[1]) && !maze.isWall(ex - d[0], ey - d[1])) { dir = d; break; }
   const dc = tileCenter(ex, ey); const dpos = new THREE.Vector3(dc.x + dir[0] * (TILE / 2 - 0.02), 0, dc.z + dir[1] * (TILE / 2 - 0.02));
   const door = makeDoor(dpos, dir); scene.add(door.group);
-  const monster = makeMonster(); monster.visible = false; scene.add(monster);
-  const phantom = makeMonster(); phantom.visible = false; scene.add(phantom);
+  const beast = opts.run && !opts.attract ? (CH.id || 'mine') : 'mine';
+  const monster = makeMonster(beast); monster.visible = false; scene.add(monster);
+  const phantom = makeMonster(beast); phantom.visible = false; scene.add(phantom);
   const scareLight = new THREE.PointLight(0xffd7a0, 0, 7, 1.8); scene.add(scareLight);
   const crawlers = [];
   for (let i = 0; i < (opts.attract ? 0 : CH.crawlers); i++) { const c = makeCrawler(); c.visible = false; scene.add(c); crawlers.push({ mesh: c, pos: new THREE.Vector3(), target: new THREE.Vector3(), ry: 0, mode: 0, dest: null, field: null, pathT: 0, stunT: 0, lostT: 0, alive: false, spawnT: 30 + i * 12 }); }
@@ -503,7 +504,7 @@ function buildGame(seed, opts = {}) {
       frozenT: 0, flT: 0, pathT: 0, field: null, dest: null, lostT: 0, firstSpawn: true, moving: false }
   };
   if (G.run) {
-    G.open = false; G.need = Math.min(6, 3 + Math.floor(ch / 3)); resetEpisode(seed);
+    G.beast = BEH[CH.id] || {}; G.open = false; G.need = Math.min(6, 3 + Math.floor(ch / 3)); resetEpisode(seed);
     G.night = pickNight(seed, SAVE.episodes);
     G.tasks = makeTasks(seed, { solo: !!opts.solo, crawlers: CH.crawlers, flares: CH.flares || hasGear('flares') });
     G.stream = { viewers: 0, peak: 0, chatT: 0, donated: 0, lines: [] };
@@ -516,7 +517,7 @@ function buildGame(seed, opts = {}) {
       c.mesh.traverse((o) => { if (o.isMesh && o.material) { o.material = o.material.clone(); if (o.material.emissive) { o.material.emissive.setHex(0x5a1070); o.material.emissiveIntensity = 1.6; } } });
       const gl = new THREE.PointLight(0x9a30ff, 3, 4, 1.8); gl.position.set(0, 0.4, 0); c.mesh.add(gl); c.glow = gl;
     }
-  } else G.night = { fog: 1, bat: 1, speed: 1, views: 1 };
+  } else { G.night = { fog: 1, bat: 1, speed: 1, views: 1 }; G.beast = {}; }
   return G;
 }
 
@@ -748,6 +749,7 @@ function runIntro() {
   SAVE.seen[key] = 1; saveP();
   const lines = [`«${SAVE.chan}». Выпуск №${SAVE.episodes + 1}.`, `${C.title}, ${C.place}. Три часа ночи.`];
   if (first) lines.push(...C.intro);
+  { const b = BEASTS[C.id]; if (b) lines.push(`Здесь водится ${b.name}. ${b.text}`); }
   if (G.night && G.night.id !== 'calm') lines.push(`${G.night.name}. ${G.night.text}`);
   lines.push(`Фургон не уедет без материала: нужно найти минимум ${G.need} находки. У зрителей три задания, проклятая находка светится фиолетовым. Успейте до рассвета.`);
   return { title: C.title, place: C.place, intro: lines };
@@ -945,9 +947,13 @@ function hostMonster(dt) {
   if (M.flT <= 0) { if (M.fl) { M.fl = false; M.flT = 1.5 + Math.random() * 3; } else if (nearAny && Math.random() < 0.5) { M.fl = true; M.flT = 0.25 + Math.random() * 0.5; } else M.flT = 0.6; }
   M.flashFreeze = Math.max(0, (M.flashFreeze || 0) - dt);
   const lit = alive.some((p) => !(M.fl && p.pos.distanceTo(M.pos) < 10) && isLitBy(p, M.pos)) || inSafeLight(M.pos, 0) || M.flashFreeze > 0;
-  M.fz = lit;
+  const B = G.beast || {};
+  M.litT = lit ? (M.litT || 0) + dt : 0;
+  const hard = M.flashFreeze > 0 || inSafeLight(M.pos, 0); // вспышка и шашка держат любую
+  M.creep = lit && !hard && (B.creep && (!B.adapt || M.litT > B.adapt)) ? B.creep : 0;
+  M.fz = lit && !M.creep;
   if (lit && G.run && inSafeLight(M.pos, 0)) taskBump('flare', 1);
-  if (lit) {
+  if (lit && !M.creep) {
     M.frozenT += dt; M.moving = false; M.mode = 2;
     if (M.frozenT > 9) { M.g = true; M.gone = 4 + Math.random() * 4; M.fz = false; }
     return;
@@ -958,16 +964,16 @@ function hostMonster(dt) {
   let seen = null, sd = 1e9;
   for (const p of alive) {
     const d = p.pos.distanceTo(M.pos);
-    const sees = d < (p.flash ? 22 : p.crouch ? 2.2 : 4.5) && lineOfSight(maze, M.pos, p.pos);
+    const B = G.beast || {}; const sees = d < (B.sight ? Math.min(B.sight, p.crouch ? 2.2 : B.sight) : p.flash ? (B.sightLit || 22) : p.crouch ? 2.2 : (B.sightDark || 4.5)) && lineOfSight(maze, M.pos, p.pos);
     if (sees && d < sd) { sd = d; seen = p; }
     const wet = !!G.world.water && p.moving;
-    const hears = d < (G.night.hear || 1) * (p.noisy ? 20 : p.running ? (p.soft ? 9 : 15) : wet ? (p.crouch ? 3 : 9) : p.moving && !p.crouch ? 4 : 0);
+    const hears = d < (G.night.hear || 1) * ((G.beast || {}).hear || 1) * (p.noisy ? 20 : p.running ? (p.soft ? 9 : 15) : wet ? (p.crouch ? 3 : 9) : p.moving && !p.crouch ? 4 : 0);
     if (hears && M.mode < 2) { M.mode = 1; M.dest = p.pos.clone(); M.field = null; }
   }
   if (seen) { if (M.mode !== 2) M.field = null; M.mode = 2; M.dest = seen.pos.clone(); M.lostT = 0; }
   else if (M.mode === 2) { M.lostT += dt; if (M.lostT > 4) { M.mode = 1; } }
   // агрессия: в поздних главах она сама идёт к ближайшему
-  if (MC.aggro && M.mode < 2) { M.aggroT -= dt; if (M.aggroT <= 0) { M.aggroT = 6; let n = alive[0], nd = 1e9; for (const p of alive) { const dd = p.pos.distanceTo(M.pos); if (dd < nd) { nd = dd; n = p; } } M.mode = 1; M.dest = n.pos.clone(); M.field = null; } }
+  if (MC.aggro && M.mode < 2) { M.aggroT -= dt; if (M.aggroT <= 0) { M.aggroT = (G.beast || {}).aggroT || 6; let n = alive[0], nd = 1e9; for (const p of alive) { const dd = p.pos.distanceTo(M.pos); if (dd < nd) { nd = dd; n = p; } } M.mode = 1; M.dest = n.pos.clone(); M.field = null; } }
   // рывок: долго никто не видит и далеко — появляется ближе
   if (MC.blink && !seen) { M.unseenT += dt; if (M.unseenT > 14 && Math.min(...alive.map((p) => p.pos.distanceTo(M.pos))) > 18) { const sp = findSpawn(alive, 6, 10); if (sp) { M.pos.copy(sp); M.field = null; M.mode = 1; M.dest = alive[0].pos.clone(); } M.unseenT = 0; } } else M.unseenT = 0;
   if (!M.dest || (M.mode < 2 && Math.hypot(M.dest.x - M.pos.x, M.dest.z - M.pos.z) < 0.8)) {
@@ -975,7 +981,7 @@ function hostMonster(dt) {
   }
   M.pathT -= dt;
   if (M.pathT <= 0 || !M.field) { const [tx, ty] = toTile(M.dest); M.field = bfs(maze.grid, maze.G, tx, ty); M.pathT = M.mode === 2 ? 0.3 : 1.5; }
-  const speed = (G.night.speed || 1) * (M.mode === 2 ? MC.speed + (G.diff ? 0.6 : 0) + (G.collected + G.stDone) * 0.05 : M.mode === 1 ? 2.6 : 1.4) * (G.weak ? 0.8 : 1);
+  const speed = (M.creep || 1) * (G.night.speed || 1) * (M.mode === 2 ? MC.speed + ((G.beast || {}).chase || 0) + (G.diff ? 0.6 : 0) + (G.collected + G.stDone) * 0.05 : M.mode === 1 ? 2.6 : 1.4) * (G.weak ? 0.8 : 1);
   let goal;
   if (M.mode === 2 && seen && sd < TILE * 1.6) goal = seen.pos;
   else {
@@ -1248,6 +1254,17 @@ function uploadMedia() {
   let k = 0; const tick = () => { if (k >= q.length || !net) return; send(q[k++]); setTimeout(tick, 220); }; setTimeout(tick, 600);
 }
 function episodeList() { return [...EP.media.values()].filter((x) => x.n).sort((a, b) => a.t0 - b.t0); }
+// ---------------- Повадки монстров разных карт ----------------
+const BEH = {
+  metro: { chase: 0.7 },                        // быстрее всех в погоне
+  hospital: { sight: 6, hear: 1.7 },            // почти слепая, слышит всё
+  camp: { sightLit: 34, sightDark: 9 },         // далеко видит на открытом месте
+  factory: { creep: 0.35 },                     // свет только замедляет
+  bunker: { hidden: true },                     // не видна в темноте
+  depot: { douse: 6 },                          // гасит фонари рядом
+  sanatorium: { aggroT: 3 },                    // всё время идёт к ближайшему
+  nii: { adapt: 2.5, creep: 0.5 }               // привыкает к свету
+};
 // ---------------- Задания зрителей ----------------
 function renderTasks() {
   const box = $('tasks'); if (!G || !G.run || !G.tasks) { box.innerHTML = ''; return; }
@@ -1517,7 +1534,7 @@ function renderDepthNote() {
   const C = MAPS[hubDepth];
   const extra = [C.crawlers ? 'ползуны' : '', C.layout === 'camp' ? 'открытая местность' : '', C.monster.blink ? 'фонарь барахлит' : '', C.monster.aggro ? 'она охотится' : ''].filter(Boolean).join(', ');
   const next = MAPS[depthsOpen()];
-  $('depthNote').textContent = `${C.place[0].toUpperCase() + C.place.slice(1)}. ${extra ? extra[0].toUpperCase() + extra.slice(1) + '. ' : ''}Просмотры и находки ×${String(C.mult).replace('.', ',')}.${next ? ` Следующая карта откроется, когда канал заработает ${fmt(next.earn)} ₽.` : ''}`;
+  $('depthNote').textContent = `${C.place[0].toUpperCase() + C.place.slice(1)}. ${BEASTS[C.id] ? `Здесь водится ${BEASTS[C.id].name}: ${BEASTS[C.id].text[0].toLowerCase() + BEASTS[C.id].text.slice(1)} ` : ''}${extra ? extra[0].toUpperCase() + extra.slice(1) + '. ' : ''}Просмотры и находки ×${String(C.mult).replace('.', ',')}.${next ? ` Следующая карта откроется, когда канал заработает ${fmt(next.earn)} ₽.` : ''}`;
 }
 function renderShop() {
   $('shopMoney').textContent = `на счету ${fmt(SAVE.money)} ₽`;
@@ -1749,6 +1766,7 @@ function updateGame(dt, t) {
   if (M.fl && mDist < 10) flick = Math.random() < (hasPerk('nerves') ? 0.25 : 0.6);
   if (G.bat < 15 && G.bat > 0) flick = flick || Math.random() < (15 - G.bat) / 60;
   if (G.forceOff > 0) flick = true;
+  if (G.beast && G.beast.douse && mDist < G.beast.douse) flick = flick || Math.random() < 0.85 - mDist / G.beast.douse * 0.5;
   G.flickerOff = flick;
   if (G.down) G.flashOn = false;
 
@@ -1927,14 +1945,14 @@ function updateVisuals(dt, t) {
   if (G.open) { D.panel.position.y = Math.min(3.6, D.panel.position.y + dt * 0.5); D.red.color.setHex(0x40ff70); D.white.intensity = Math.min(6, D.white.intensity + dt * 3); }
   // монстр
   if (G.catchAnim <= 0) {
-    mon.visible = !M.g;
+    mon.visible = !M.g && (!(G.beast && G.beast.hidden) || G.catchAnim > 0 || Math.hypot(M.pos.x - G.pos.x, M.pos.z - G.pos.z) < 3.2 || (G.flashOn && G.bat > 0 && !G.flickerOff && isLitBy({ pos: G.pos, yaw, pitch, flash: true }, M.pos, 9, 0.5)));
     mon.position.set(M.pos.x, 0, M.pos.z);
     let dr = M.ry - mon.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); mon.rotation.y += dr * damp(8, dt);
     const st = M.fz ? 'frozen' : !M.moving ? 'stand' : M.mode === 2 ? 'chase' : 'stalk';
     if (st === 'stand' && G.attract) poseMonster(mon, 'stand', dt, t, { tilt: 0.6 }); else poseMonster(mon, st, dt, t);
   }
   // глаза отражают свет фонаря
-  const eyeK = (m) => { const d = m.position.distanceTo(camera.position); return on && m.visible && d < 20 && isLitBy({ pos: G.pos.clone ? camera.position : G.pos, yaw, pitch, flash: true }, m.position, 20, 0.5) ? 8 * (1 - d / 20) : 0; };
+  const eyeK = (m) => { const d = m.position.distanceTo(camera.position), k = m.userData.P.eyeK ?? 1; return (on && m.visible && d < 20 && isLitBy({ pos: G.pos.clone ? camera.position : G.pos, yaw, pitch, flash: true }, m.position, 20, 0.5) ? 8 * (1 - d / 20) * k : 0) + (k > 1 && m.visible ? 0.9 : 0); };
   mon.userData.P.eyeMat.emissiveIntensity = G.catchAnim > 0 ? 3 : eyeK(mon);
   G.phantom.userData.P.eyeMat.emissiveIntensity = G.phantom.visible ? Math.max(1.5, eyeK(G.phantom)) : 0;
   for (const p of G.players.values()) {

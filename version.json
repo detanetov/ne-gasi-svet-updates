@@ -1,7 +1,7 @@
 {
- "version": "0.8.1",
+ "version": "0.9.0",
  "minShell": "1.1.0",
- "notes": "Фургон уезжает только когда найдено достаточно находок. К рассвету без материала — выпуск провален",
+ "notes": "На каждой карте свой монстр со своими повадками",
  "files": {
   "icon.png": {
    "sha256": "122987066a6828e7283505447b2a50cec093bc68d231bfce34b5f044dffac8d2",
@@ -124,8 +124,8 @@
    "size": 8870
   },
   "js/game.js": {
-   "sha256": "89ed78592e58d2a4c4c0daf36ddf4704f3fda498e2fb6f923156afbcd75f6ce1",
-   "size": 155469
+   "sha256": "1bc7b43559b7c18c651f470a62496be640bfef61f89eb36e65f34620ca5c9788",
+   "size": 157624
   },
   "js/kits.js": {
    "sha256": "99f7fd61ba2a53e346cea8dd97f917a87a24e70474f6583e69d4b317d0205c63",
@@ -136,8 +136,8 @@
    "size": 20586
   },
   "js/monster.js": {
-   "sha256": "782b27df4b38ccb76614e22b2b3368f31bf84aab9244f9d8070ec0011500692e",
-   "size": 29099
+   "sha256": "304f86f4f733b571abc7bba34e4aee359cedde23762e4195423603689dae71c9",
+   "size": 40313
   },
   "js/net.js": {
    "sha256": "e7746b0dfc6bb2f9a2d1efc0da53dd9b0079331f287dba78d716be2eb8c4f133",

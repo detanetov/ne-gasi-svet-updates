@@ -207,7 +207,12 @@ function finger(parent, mat, nail, lens, r, curl) {
   const cl = new THREE.Mesh(new THREE.ConeGeometry(r * 0.9, 0.05, 6), nail); cl.position.y = -0.02; cl.rotation.x = Math.PI; node.add(cl);
 }
 
-export function makeMonster() {
+export function makeMonster(kind = 'mine') {
+  const g = makeBase();
+  applyVariant(g, kind);
+  return g;
+}
+function makeBase() {
   const sk = skinTextures();
   const skin = new THREE.MeshStandardMaterial({ ...sk, color: 0x6e655e, roughness: 1, metalness: 0, normalScale: new THREE.Vector2(1.5, 1.5) });
   const dark = new THREE.MeshStandardMaterial({ color: 0x050303, roughness: 1 });
@@ -391,4 +396,111 @@ export function poseMonster(m, state, dt, t, opts = {}) {
     P.arms.forEach((a) => { a.sh.rotation.x = 0.02; a.sh.rotation.z = a.s * -0.03; a.el.rotation.x = 0; });
     P.head.rotation.set(-0.12, 0, opts.tilt ?? 0.55);
   }
+}
+
+
+// ---------------- Свой монстр на каждой карте ----------------
+// одна основа (рост, руки, лицо, ткань), сверху — пропорции, одежда и детали
+export const BEASTS = {
+  mine: { name: 'Хозяйка', text: 'Стоит в луче фонаря. Моргнёшь — она ближе.' },
+  metro: { name: 'Пассажирка', text: 'Длинное пальто, волосы закрывают лицо. Бегает по тоннелям быстрее всех, но сразу замирает в свете.' },
+  hospital: { name: 'Санитарка', text: 'Глаза под бинтами — почти слепая, зато слышит каждый шаг. Ходи пригнувшись.' },
+  camp: { name: 'Длинношеяя', text: 'Шея длиной в руку. На открытом месте видит тебя издалека.' },
+  school: { name: 'Завуч', text: 'Пропадает и появляется в другом конце коридора.' },
+  factory: { name: 'Мастер', text: 'В сварочной маске. Свет её не останавливает — только замедляет.' },
+  bunker: { name: 'Противогаз', text: 'В темноте её не видно совсем. Только в луче и вблизи.' },
+  depot: { name: 'Проводница', text: 'Ходит с фонарём между вагонами и сама гасит чужой свет рядом с собой.' },
+  sanatorium: { name: 'Уборщица', text: 'Не ждёт, пока её найдут. Всё время идёт к ближайшему.' },
+  nii: { name: 'Объект', text: 'Её изучали годами. Свет держит её всего пару секунд, потом она привыкает.' }
+};
+function std(c, o = {}) { return new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, ...o }); }
+function applyVariant(g, kind) {
+  const P = g.userData.P; const head = P.head, spine = P.spine;
+  const robe = spine.children.find((o) => o.isMesh && o.geometry.type === 'LatheGeometry');
+  const cape = spine.children.filter((o) => o.isMesh && o.geometry.type === 'LatheGeometry')[1];
+  const hood = head.children.find((o) => o.isMesh && o.geometry.type === 'SphereGeometry' && o.geometry.parameters.radius === 0.19);
+  const strands = head.children.filter((o) => o.isMesh && o.geometry.type !== 'SphereGeometry');
+  const tint = (c) => { for (const m of [robe, cape, hood]) if (m) { m.material = m.material.clone(); m.material.onBeforeCompile = robe.material.onBeforeCompile; m.material.color.setHex(c); } P.arms.forEach((a) => a.sh.children.forEach((o) => { if (o.isMesh && o.geometry.type === 'CylinderGeometry' && o.geometry.parameters.openEnded) { o.material = robe.material; } })); };
+  const eyes = (c, k = 1) => { P.eyeColor = c; P.eyeMat.emissive.setHex(c); P.eyeK = k; };
+  const add = (parent, mesh, x, y, z) => { mesh.position.set(x, y, z); mesh.castShadow = true; parent.add(mesh); return mesh; };
+  if (kind === 'metro') {
+    tint(0x2a2a30); if (hood) hood.visible = false; g.scale.set(0.95, 1.12, 0.95);
+    // длинные волосы спереди закрывают лицо
+    const hm = std(0x050404, { roughness: 0.9 });
+    for (let i = 0; i < 70; i++) { const a = -1.4 + (i / 69) * 2.8; const len = 0.45 + Math.random() * 0.35; const st = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.001, len, 4), hm); st.geometry.translate(0, -len / 2, 0); st.position.set(Math.sin(a) * 0.1, 0.13, -Math.cos(a) * 0.1); st.rotation.set(Math.cos(a) * 0.18, 0, Math.sin(a) * 0.12); head.add(st); }
+    // воротник пальто и пуговицы
+    const col = add(spine, new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.04, 8, 24), std(0x1c1c20)), 0, 1.7, 0); col.rotation.x = Math.PI / 2; col.scale.set(1, 0.75, 1);
+    for (let i = 0; i < 5; i++) add(spine, new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), std(0x6a5a40, { metalness: 0.8 })), 0, 1.5 - i * 0.22, -0.17 + i * 0.012);
+    head.rotation.z = 0.4; eyes(0xffffff, 0.5);
+  } else if (kind === 'hospital') {
+    tint(0xffffff); robe.material.emissive = new THREE.Color(0x1a1814); if (hood) hood.visible = false; strands.forEach((o) => { o.visible = false; });
+    // бинты на голове и глазах, шапочка
+    const band = std(0xd8d2c0, { roughness: 1 });
+    for (let i = 0; i < 6; i++) { const t = add(head, new THREE.Mesh(new THREE.TorusGeometry(0.115 - Math.abs(i - 2) * 0.006, 0.012, 6, 28), band), 0, -0.02 + i * 0.03, 0); t.rotation.set(Math.PI / 2 + (Math.random() - 0.5) * 0.3, 0, (Math.random() - 0.5) * 0.3); t.scale.set(1, 1, 0.9); }
+    const cap = add(head, new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.08, 20), std(0xe8e4d8)), 0, 0.17, 0.01);
+    const cross = add(head, new THREE.Mesh(new THREE.PlaneGeometry(0.04, 0.04), std(0x8a1a12)), 0, 0.17, -0.121); cross.rotation.y = Math.PI;
+    // пятна крови на халате
+    spine.rotation.x = -0.25; g.scale.setScalar(0.95); eyes(0x000000, 0);
+  } else if (kind === 'camp') {
+    tint(0x4a4038);
+    // длинная шея: голова поднята, между плеч — тонкая шея
+    head.position.y += 0.55; const neck = add(spine, new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.045, 0.62, 12), P.skin), 0, 2.08, -0.02);
+    for (let i = 0; i < 6; i++) add(spine, new THREE.Mesh(new THREE.TorusGeometry(0.038, 0.008, 6, 14), P.skin), 0, 1.82 + i * 0.1, -0.02).rotation.x = Math.PI / 2;
+    if (hood) hood.visible = false;
+    // красный галстук
+    const tie = add(spine, new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 3), std(0x9a1810, { roughness: 0.6 })), 0, 1.55, -0.16); tie.rotation.set(Math.PI, 0, 0); tie.scale.z = 0.2;
+    eyes(0xff4020, 1.2);
+  } else if (kind === 'school') {
+    tint(0x3a3448); if (hood) hood.visible = false;
+    // пучок волос, очки, строгий воротник
+    add(head, new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 12), std(0x1a1410)), 0, 0.12, 0.1);
+    const gl = std(0x111111, { metalness: 0.8, roughness: 0.3 });
+    for (const sx of [-1, 1]) { const r = add(head, new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.004, 6, 18), gl), sx * 0.035, 0.045, -0.118); }
+    add(head, new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.004, 0.004), gl), 0, 0.045, -0.12);
+    const col = add(spine, new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.16, 0.12, 20), std(0xd8d4c8)), 0, 1.72, 0);
+    g.scale.set(1, 1.05, 1); eyes(0xfff4c0, 1.4);
+  } else if (kind === 'factory') {
+    tint(0x3c4a3a); if (hood) hood.visible = false; strands.forEach((o) => { o.visible = false; });
+    // сварочная маска и фартук
+    const mask = add(head, new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.28, 0.06), std(0x1a1a18, { metalness: 0.4 })), 0, 0.02, -0.12);
+    const glass = add(head, new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.045), new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0x30ff60, emissiveIntensity: 0.6 })), 0, 0.05, -0.151); glass.rotation.y = Math.PI;
+    P.eyeMat = glass.material;
+    g.scale.set(1.15, 1, 1.15); eyes(0x30ff60, 1);
+  } else if (kind === 'bunker') {
+    tint(0x3a3e30); strands.forEach((o) => { o.visible = false; });
+    // противогаз ГП-5: резиновая маска, два стекла, фильтр
+    const rub = std(0x2a2e26, { roughness: 0.5 });
+    const m = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.13, 24, 18), rub), 0, 0.01, -0.02); m.scale.set(0.95, 1.25, 1);
+    for (const sx of [-1, 1]) { const l = add(head, new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.02, 18), new THREE.MeshStandardMaterial({ color: 0x050505, emissive: 0xff2010, emissiveIntensity: 0 })), sx * 0.045, 0.05, -0.135); l.rotation.x = Math.PI / 2; if (sx < 0) P.eyeMat = l.material; else l.material = P.eyeMat; }
+    const f = add(head, new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.09, 16), std(0x4a4a40, { metalness: 0.6 })), 0, -0.08, -0.15); f.rotation.x = Math.PI / 2 - 0.4;
+    const hose = add(spine, new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.014, 6, 16, Math.PI), rub), 0, 1.7, -0.2); hose.rotation.set(0, 0, Math.PI / 2);
+    spine.rotation.x = -0.15; eyes(0xff2010, 1.2);
+  } else if (kind === 'depot') {
+    tint(0x1e2a48); if (hood) hood.visible = false;
+    // фуражка проводницы, пуговицы, фонарь в руке
+    add(head, new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.11, 0.06, 20), std(0x1a2440)), 0, 0.15, 0);
+    const visor = add(head, new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.01, 20, 1, false, Math.PI * 0.6, Math.PI * 0.8), std(0x050505, { roughness: 0.3 })), 0, 0.12, -0.03);
+    for (let i = 0; i < 4; i++) add(spine, new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), std(0xc8a040, { metalness: 0.9, roughness: 0.3 })), 0.06, 1.55 - i * 0.18, -0.16);
+    const hand = P.arms[1].hand; const lamp = add(hand, new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.12, 12), std(0x2a2a22, { metalness: 0.7 })), 0, -0.2, 0);
+    const lm = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffb060, emissiveIntensity: 2 }); add(hand, new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), lm), 0, -0.2, 0);
+    const pl = new THREE.PointLight(0xff9a50, 2.5, 6, 1.8); pl.position.set(0, -0.2, 0); hand.add(pl); P.lantern = pl;
+    eyes(0xffd0a0, 0.8);
+  } else if (kind === 'sanatorium') {
+    tint(0x5a5a52); if (hood) hood.visible = false;
+    // косынка, фартук, ведро
+    const kerch = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.135, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.55), std(0x7a2a2a, { roughness: 1 })), 0, 0.02, 0.01); kerch.scale.set(1, 1.2, 1.15);
+    const hand = P.arms[0].hand; const bucket = add(hand, new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.09, 0.22, 16, 1, true), std(0x6a6a64, { metalness: 0.7, side: THREE.DoubleSide })), 0, -0.25, 0);
+    g.scale.set(1, 1.1, 1); eyes(0xfff0d0, 1);
+  } else if (kind === 'nii') {
+    // голая, бледная, вытянутая: ткани нет
+    robe.material = P.skin; if (cape) cape.visible = false; if (hood) hood.visible = false; strands.forEach((o) => { o.visible = false; });
+    P.arms.forEach((a) => a.sh.children.forEach((o) => { if (o.isMesh && o.geometry.type === 'CylinderGeometry' && o.geometry.parameters.openEnded) o.visible = false; }));
+    P.skin.color.setHex(0xb0aca4);
+    const skullTop = add(head, new THREE.Mesh(new THREE.SphereGeometry(0.11, 24, 18), P.skin), 0, 0.09, 0.03); skullTop.scale.set(0.95, 1.4, 1.1);
+    // бирка и электроды
+    add(spine, new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.005), std(0xd8d0b0)), 0.1, 1.5, -0.16);
+    for (let i = 0; i < 4; i++) add(head, new THREE.Mesh(new THREE.SphereGeometry(0.01, 6, 4), std(0x8a8070, { metalness: 0.9 })), (i - 1.5) * 0.05, 0.2, -0.04);
+    g.scale.set(0.9, 1.22, 0.9); eyes(0x80d0ff, 2);
+  } else eyes(0xfff0d0, 1);
+  g.userData.kind = kind;
 }
