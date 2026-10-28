@@ -1,19 +1,27 @@
 {
- "version": "0.6.1",
+ "version": "0.7.0",
  "minShell": "1.1.0",
- "notes": "Новое название и иконка: Ночной эфир",
+ "notes": "10 карт вместо лабиринтов, телефон с фото и видео, общий монтаж выпуска, ползунок оптимизации, ультра+, снятие ограничения FPS",
  "files": {
   "icon.png": {
    "sha256": "122987066a6828e7283505447b2a50cec093bc68d231bfce34b5f044dffac8d2",
    "size": 11064
   },
   "index.html": {
-   "sha256": "164b70f137cc94027bc5bb9327c374ec8b323e9ee54b75ed1ed28b619ef7a5e1",
-   "size": 23511
+   "sha256": "ce8293f37a4f6fdb92f16d44186ca98a6bbf9afc095c469052f7bb908d0f6572",
+   "size": 30275
   },
   "splash.html": {
    "sha256": "ae16a3d11e02cd2b2377fcafa2e92d21d57008a16772322ecf54c16c350f449d",
    "size": 1573
+  },
+  "shell/core.js": {
+   "sha256": "3d2b34c2f132f72aef59e55c15c72984fbbebeae45a01c08341072e4f391ed06",
+   "size": 5630
+  },
+  "shell/preload.js": {
+   "sha256": "a3e8170695c7f851f6d65e18e8be5c5e05afc522e639a7c3ebd0a5e7693ad911",
+   "size": 724
   },
   "fonts/Cormorant-Italic.ttf": {
    "sha256": "0f48ea6abb2084537854f7174c470991a463b13036309e3b50a81511611c530d",
@@ -100,20 +108,28 @@
    "size": 18039
   },
   "js/avatar.js": {
-   "sha256": "f2bdcad86cbca393fa288de4663a2586f28dae3080a877b654ea02864304f437",
-   "size": 16661
+   "sha256": "da978328c79008672d56eb21599d05042a7f0be0a4534fb0f62aeafcf6193d5d",
+   "size": 18306
   },
   "js/channel.js": {
-   "sha256": "76892f87fd66d6398f6e3ab15631802c57384ff294a0100bf1258756224de888",
-   "size": 6287
+   "sha256": "9f033b19f9d37eaa49700a5a99a714b0cbd0d3db6413d3479609149edbde371a",
+   "size": 6311
   },
   "js/chapters.js": {
    "sha256": "d10633ae1cdafd1eddd6f7adba5eda8e499604465d068ba1928db2cf5767cabb",
    "size": 21611
   },
   "js/game.js": {
-   "sha256": "5e3cc274a586c0abde5d489fbd6fadbb398373284eece2bd4c2dc9c4ad629865",
-   "size": 125845
+   "sha256": "7a2cc46c50484e42cd518c2d4a6ba7629627c3b382137e3e759cac28e23b71d7",
+   "size": 143181
+  },
+  "js/kits.js": {
+   "sha256": "99f7fd61ba2a53e346cea8dd97f917a87a24e70474f6583e69d4b317d0205c63",
+   "size": 37992
+  },
+  "js/maps.js": {
+   "sha256": "f828416dfa1a278ba903cca82ba6c06e8afedae38dc1ab818e2bf485be1e990f",
+   "size": 20586
   },
   "js/monster.js": {
    "sha256": "782b27df4b38ccb76614e22b2b3368f31bf84aab9244f9d8070ec0011500692e",
@@ -127,9 +143,13 @@
    "sha256": "839d9ab92def009eac91a47d2cf321ba65b34026947ca764179767144290be24",
    "size": 12861
   },
+  "js/vanscene.js": {
+   "sha256": "88918bb79c4e972e13dd58806278349b7b07fdf69aed73b9a56bd298cab0c93f",
+   "size": 18787
+  },
   "js/world.js": {
-   "sha256": "8d049531cad3300bfa2597113dc228e77e094deb4de5f8fc6d05f55253555d30",
-   "size": 34646
+   "sha256": "1cf72e05ffe407cf376fb3546d6a4f2e9fdabea749a2898e1389e70471c65109",
+   "size": 51248
   }
  }
 }
