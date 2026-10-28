@@ -7,7 +7,7 @@ const net = require('net');
 const os = require('os');
 const { pathToFileURL } = require('url');
 
-exports.version = 2;
+exports.version = 3;
 let win = null, splash = null, gameRoot = '', ctx = {};
 const LAN_PORT = 27315;
 const flagsFile = () => path.join(app.getPath('userData'), 'flags.json');
@@ -90,6 +90,21 @@ ipcMain.on('lan-stop', () => lanStop());
 ipcMain.on('quit', () => app.quit());
 ipcMain.on('fullscreen', (_e, v) => { if (win) win.setFullScreen(!!v); });
 
+// сохранения игры в файлах: запись через временный файл, прошлая версия остаётся резервной копией
+const storeFile = (k) => path.join(app.getPath('userData'), 'saves', String(k).replace(/[^a-z0-9_-]/gi, '') + '.json');
+ipcMain.on('store-read', (e, k) => {
+  const f = storeFile(k); let out = null;
+  for (const x of [f, f + '.bak']) { try { const t = fs.readFileSync(x, 'utf8'); JSON.parse(t); out = t; break; } catch (er) {} }
+  e.returnValue = out;
+});
+ipcMain.on('store-write', (_e, k, text) => {
+  try {
+    if (typeof text !== 'string' || text.length > 5e6) return; JSON.parse(text);
+    const f = storeFile(k); fs.mkdirSync(path.dirname(f), { recursive: true });
+    if (fs.existsSync(f)) fs.copyFileSync(f, f + '.bak');
+    fs.writeFileSync(f + '.tmp', text); fs.renameSync(f + '.tmp', f);
+  } catch (er) {}
+});
 // флаги запуска (применяются при следующем старте программы)
 ipcMain.handle('flags-get', () => ({ ...readFlags(), shell: ctx.shellVersion, core: exports.version }));
 ipcMain.handle('flags-set', (_e, f) => { const cur = readFlags(); const next = { ...cur, ...f }; try { fs.writeFileSync(flagsFile(), JSON.stringify(next)); } catch (e) { return false; } return true; });

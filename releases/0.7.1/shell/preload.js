@@ -12,5 +12,7 @@ contextBridge.exposeInMainWorld('native', {
   fullscreen: (v) => ipcRenderer.send('fullscreen', v),
   getFlags: () => ipcRenderer.invoke('flags-get'),
   setFlags: (f) => ipcRenderer.invoke('flags-set', f),
-  openUrl: (u) => ipcRenderer.send('open-url', u)
+  openUrl: (u) => ipcRenderer.send('open-url', u),
+  readStore: (k) => ipcRenderer.sendSync('store-read', k),
+  writeStore: (k, text) => ipcRenderer.send('store-write', k, text)
 });

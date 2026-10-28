@@ -25,8 +25,8 @@ const damp = (k, dt) => 1 - Math.exp(-k * dt);
 
 // ---------------- Настройки ----------------
 const S = { sens: 1, vol: 0.8, bri: 1, qual: 'high', fov: 75, nick: '', color: 0, opt: 0, fps: 'vsync', fpsShow: 0 };
-try { Object.assign(S, JSON.parse(localStorage.getItem('ngs-settings') || '{}')); } catch (e) {}
-const saveS = () => { try { localStorage.setItem('ngs-settings', JSON.stringify(S)); } catch (e) {} };
+{ let t = null; try { t = localStorage.getItem('ngs-settings'); } catch (e) {} if (!t) try { if (window.native && window.native.readStore) t = window.native.readStore('settings'); } catch (e) {} try { Object.assign(S, JSON.parse(t || '{}')); } catch (e) {} }
+const saveS = () => { const t = JSON.stringify(S); try { localStorage.setItem('ngs-settings', t); } catch (e) {} try { if (window.native && window.native.writeStore) window.native.writeStore('settings', t); } catch (e) {} };
 if (params.get('q')) S.qual = params.get('q');
 if (!S.nick) S.nick = 'Игрок' + Math.floor(Math.random() * 900 + 100);
 if (!QUAL_KEYS.includes(S.qual)) S.qual = 'high';
@@ -34,13 +34,35 @@ addEventListener('DOMContentLoaded', () => { const f = document.getElementById('
 
 // ---------------- Прогресс ----------------
 const SAVE = { unlocked: 1, ch: 0, perks: [], notes: {}, hints: {}, done: false, chan: 'Ночной эфир', subs: 0, money: 0, gear: [], look: null, best: 0, episodes: 0, seen: {} };
-try { Object.assign(SAVE, JSON.parse(localStorage.getItem('ngs-save') || '{}')); } catch (e) {}
-const saveP = () => { try { localStorage.setItem('ngs-save', JSON.stringify(SAVE)); } catch (e) {} };
+// прогресс хранится в двух местах: в браузерном хранилище и в файле программы (save.json с резервной копией).
+// При запуске берётся более свежая копия, так что ни обновление, ни сбой хранилища его не обнуляют
+const readJ = (t) => { try { return t ? JSON.parse(t) : null; } catch (e) { return null; } };
+{
+  const ls = readJ((() => { try { return localStorage.getItem('ngs-save'); } catch (e) { return null; } })());
+  let fs = null; try { if (window.native && window.native.readStore) fs = readJ(window.native.readStore('save')); } catch (e) {}
+  const score = (x) => (x ? (x.episodes || 0) * 1e6 + (x.subs || 0) + (x.money || 0) * 1e-3 : -1);
+  const pick = !fs ? ls : !ls ? fs : (fs.t && ls.t) ? (fs.t >= ls.t ? fs : ls) : (score(fs) >= score(ls) ? fs : ls);
+  if (pick) Object.assign(SAVE, pick);
+}
+const saveP = () => {
+  SAVE.t = Date.now(); const txt = JSON.stringify(SAVE);
+  try { localStorage.setItem('ngs-save', txt); } catch (e) {}
+  try { if (window.native && window.native.writeStore) window.native.writeStore('save', txt); } catch (e) {}
+};
 if (!SAVE.look) SAVE.look = randomLook(); SAVE.look = cleanLook(SAVE.look);
 const hasGear = (k) => SAVE.gear.includes(k);
 const hasPerk = (k) => SAVE.perks.includes(k) || hasGear(k) || (k === 'soft' && hasGear('boots')) || (k === 'battery' && hasGear('torch'));
 if (SAVE.earned == null) SAVE.earned = SAVE.money + (SAVE.gear || []).reduce((a, k) => a + (GEAR[k] ? GEAR[k].price : 0), 0);
+// старые сохранения: глубины открывались по подписчикам, карты — по заработку. Всё, что было открыто, остаётся открытым
+if (!SAVE.migr7) {
+  const oldOpen = DEPTH_SUBS.filter((n) => (SAVE.subs || 0) >= n).length;
+  const byViews = Math.round((SAVE.subs || 0) * 9 / 25) + (SAVE.episodes || 0) * 600;
+  SAVE.earned = Math.max(SAVE.earned || 0, byViews, oldOpen > 1 ? MAPS[Math.min(oldOpen, MAPS.length) - 1].earn : 0);
+  SAVE.migr7 = 1;
+}
 const depthsOpen = () => mapsOpen(SAVE.earned || 0);
+saveP(); // сразу дублируем в файл
+addEventListener('beforeunload', () => saveP());
 const notesTotal = () => Object.values(SAVE.notes).reduce((a, b) => a + b, 0);
 function hint(key, text) { if (SAVE.hints[key]) return; SAVE.hints[key] = 1; saveP(); log(text, 8000); }
 
@@ -1961,4 +1983,4 @@ addEventListener('pointerdown', unlockAudio); addEventListener('keydown', unlock
 // ---------------- Старт ----------------
 startAttract();
 frame();
-window.__ngs = { score: () => scorePhoto(), photo: () => takePhoto(), shutter: () => shutter(), get EP() { return EP; }, scare: (k) => startScare(k), perf: () => PERF, info: () => renderer.info.render, snap: () => new Promise((r) => { snapReq = r; }), get G() { return G; }, get hostLast() { return performance.now() - hostLast; }, get mode() { return mode; }, me, S, startSolo, keys, setYaw: (y, p) => { yaw = y; pitch = p ?? pitch; }, handle };
+window.__ngs = { SAVE, saveP, score: () => scorePhoto(), photo: () => takePhoto(), shutter: () => shutter(), get EP() { return EP; }, scare: (k) => startScare(k), perf: () => PERF, info: () => renderer.info.render, snap: () => new Promise((r) => { snapReq = r; }), get G() { return G; }, get hostLast() { return performance.now() - hostLast; }, get mode() { return mode; }, me, S, startSolo, keys, setYaw: (y, p) => { yaw = y; pitch = p ?? pitch; }, handle };
