@@ -1,15 +1,15 @@
 {
- "version": "0.5.1",
+ "version": "0.6.0",
  "minShell": "1.0.0",
- "notes": "Детальные модели: вагонетки, ящики, Хозяйка, ползуны",
+ "notes": "Ночной эфир: канал, камера, находки, снаряжение, персонажи",
  "files": {
   "icon.png": {
    "sha256": "42e22261b55ed31b9b8a3c4801bf2c6a5037aa770dad0cf410b5285b8cba5ac4",
    "size": 64313
   },
   "index.html": {
-   "sha256": "c475d77561577ea9aa5cd2cabc7e2fa87dc010485c3e556ada00868e38b8b989",
-   "size": 17837
+   "sha256": "164b70f137cc94027bc5bb9327c374ec8b323e9ee54b75ed1ed28b619ef7a5e1",
+   "size": 23511
   },
   "fonts/Cormorant-Italic.ttf": {
    "sha256": "0f48ea6abb2084537854f7174c470991a463b13036309e3b50a81511611c530d",
@@ -95,13 +95,21 @@
    "sha256": "70189dcac960f2978d9112457ed89c81351115d3e412fc3f9b718ae28e76814d",
    "size": 18039
   },
+  "js/avatar.js": {
+   "sha256": "f2bdcad86cbca393fa288de4663a2586f28dae3080a877b654ea02864304f437",
+   "size": 16661
+  },
+  "js/channel.js": {
+   "sha256": "76892f87fd66d6398f6e3ab15631802c57384ff294a0100bf1258756224de888",
+   "size": 6287
+  },
   "js/chapters.js": {
    "sha256": "d10633ae1cdafd1eddd6f7adba5eda8e499604465d068ba1928db2cf5767cabb",
    "size": 21611
   },
   "js/game.js": {
-   "sha256": "20476e5a7bc2c38fe43b464452f427bb1a21d4f72709b9804a54c1e9b590fac3",
-   "size": 105301
+   "sha256": "5e3cc274a586c0abde5d489fbd6fadbb398373284eece2bd4c2dc9c4ad629865",
+   "size": 125845
   },
   "js/monster.js": {
    "sha256": "782b27df4b38ccb76614e22b2b3368f31bf84aab9244f9d8070ec0011500692e",
