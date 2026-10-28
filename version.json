@@ -1,15 +1,15 @@
 {
- "version": "0.4.0",
+ "version": "0.5.0",
  "minShell": "1.0.0",
- "notes": "Присед на Ctrl, графика (AO, рельсы, вагонетки, дымка луча), история: вступление, 9 записок, концовки",
+ "notes": "Кампания из 7 глав, ползуны, шашки, улучшения, концовки",
  "files": {
   "icon.png": {
    "sha256": "42e22261b55ed31b9b8a3c4801bf2c6a5037aa770dad0cf410b5285b8cba5ac4",
    "size": 64313
   },
   "index.html": {
-   "sha256": "9f5fcbcf51a5b3fe3daa6b98663e618b6860d68c5e9e26f3d1654c69f4eb537a",
-   "size": 16606
+   "sha256": "c475d77561577ea9aa5cd2cabc7e2fa87dc010485c3e556ada00868e38b8b989",
+   "size": 17837
   },
   "fonts/Cormorant-Italic.ttf": {
    "sha256": "0f48ea6abb2084537854f7174c470991a463b13036309e3b50a81511611c530d",
@@ -92,28 +92,28 @@
    "size": 6614
   },
   "js/audio.js": {
-   "sha256": "74e856444f80a6b313131878db16f7578e9d8c901c03669d5825444b379a9003",
-   "size": 17781
+   "sha256": "70189dcac960f2978d9112457ed89c81351115d3e412fc3f9b718ae28e76814d",
+   "size": 18039
+  },
+  "js/chapters.js": {
+   "sha256": "d10633ae1cdafd1eddd6f7adba5eda8e499604465d068ba1928db2cf5767cabb",
+   "size": 21611
   },
   "js/game.js": {
-   "sha256": "c0dfd2337279f9dce3f2a8970ec0bb565484ff6743ee2bea53811ac3dc5bfab3",
-   "size": 77460
+   "sha256": "b871e8576cfc5ed560cea21f2cc78818643cc8c1a595075d865fb8af5733c48b",
+   "size": 107677
   },
   "js/monster.js": {
-   "sha256": "2a5dd7fd5c662ea348c6899fc68d5fa9ad435a0218b9651390b1792d539dadc6",
-   "size": 18265
+   "sha256": "15a4eb47bdde64ce48b25c3871ad009c9dfaf3847b6ffc520c8a6971b52f685c",
+   "size": 18271
   },
   "js/net.js": {
    "sha256": "e7746b0dfc6bb2f9a2d1efc0da53dd9b0079331f287dba78d716be2eb8c4f133",
    "size": 4624
   },
-  "js/story.js": {
-   "sha256": "7b5fe46503636b24dd0dfed09ff5bbbc956fb78db463f9995e21ec71e9d5b5db",
-   "size": 5499
-  },
   "js/world.js": {
-   "sha256": "cef043b506b485e24c8166b6c64ea93e1337d05d28352b7d4bf1f1f8a0bce92a",
-   "size": 30177
+   "sha256": "d5503634ea8e02e41d72a42b373d8f4a9966ba6e67f59b2b62293d029db6b2db",
+   "size": 35568
   }
  }
 }
