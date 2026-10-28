@@ -10,6 +10,7 @@ import { Sound } from './audio.js';
 import { makeMonster, poseMonster, makeCrawler, poseCrawler } from './monster.js';
 import { CHAPTERS, PERKS, TOTAL_NOTES, finalEnding } from './chapters.js';
 import { MAPS, mapsOpen } from './maps.js';
+import { pickNight, makeTasks, chatLine, donation, ACH } from './events.js';
 import { makeAvatar as makeAvatar2, poseAvatar, LOOK_OPTIONS, randomLook, cleanLook } from './avatar.js';
 import { DEPTH_SUBS, GOAL_SUBS, GEAR, LOOT, MESSAGES, comments, fmt } from './channel.js';
 import { buildVanScene } from './vanscene.js';
@@ -501,7 +502,21 @@ function buildGame(seed, opts = {}) {
     m: { pos: new THREE.Vector3(), target: new THREE.Vector3(), ry: 0, fz: false, g: true, fl: false, mode: 0, gone: opts.attract ? 0 : (opts.diff ? CH.monster.grace * 0.6 : CH.monster.grace), aggroT: 0, unseenT: 0,
       frozenT: 0, flT: 0, pathT: 0, field: null, dest: null, lostT: 0, firstSpawn: true, moving: false }
   };
-  if (G.run) { G.open = true; resetEpisode(seed); }
+  if (G.run) {
+    G.open = true; resetEpisode(seed);
+    G.night = pickNight(seed, SAVE.episodes);
+    G.tasks = makeTasks(seed, { solo: !!opts.solo, crawlers: CH.crawlers, flares: CH.flares || hasGear('flares') });
+    G.stream = { viewers: 0, peak: 0, chatT: 0, donated: 0, lines: [] };
+    scene.fog.density *= G.night.fog;
+    if (G.night.red) { scene.fog.color.setHex(0x1a0605); amb.color.setHex(0x9a4a40); hemi.color.setHex(0x803a30); }
+    // одна находка проклята: дороже вчетверо, но она сразу чует, кто её взял
+    const loots = items.filter((i) => i.kind === 'loot');
+    if (loots.length) {
+      const c = loots[seed % loots.length]; c.loot = { ...c.loot, name: 'Проклятая вещь: ' + c.loot.name.toLowerCase(), value: c.loot.value * 4, cursed: true }; c.cursed = true;
+      c.mesh.traverse((o) => { if (o.isMesh && o.material) { o.material = o.material.clone(); if (o.material.emissive) { o.material.emissive.setHex(0x5a1070); o.material.emissiveIntensity = 1.6; } } });
+      const gl = new THREE.PointLight(0x9a30ff, 3, 4, 1.8); gl.position.set(0, 0.4, 0); c.mesh.add(gl); c.glow = gl;
+    }
+  } else G.night = { fog: 1, bat: 1, speed: 1, views: 1 };
   return G;
 }
 
@@ -553,6 +568,7 @@ function handle(m, local = false) {
       if (mode === 'lobby' || mode === 'end' || local) startGame(m); break;
     case 'st': if (G && mode === 'game') onState(m); break;
     case 'md': onMediaMeta(m); break;
+    case 'tk': if (G && G.tasks) { const t = G.tasks.find((x) => x.id === m.id); if (t && !t.done) completeTask(t, m.from); } break;
     case 'mf': onMediaFrames(m); break;
     case 'pick': if (isHost && G) hostPick(m.item, m.from); break;
     case 'took': if (G) applyTook(m); break;
@@ -610,7 +626,12 @@ function renderLobby() {
   lobbyPlayers.forEach((p, i) => { const d = document.createElement('div'); d.innerHTML = `<i style="background:${COLORS[p.color % COLORS.length]}"></i><span></span>${i === 0 ? '<small>хост</small>' : ''}`; d.querySelector('span').textContent = p.name + (p.id === me.id ? ' (ты)' : ''); pl.appendChild(d); });
   $('bStart').style.display = isHost ? '' : 'none';
   $('hostOpts').style.display = isHost ? '' : 'none';
-  if (isHost && !$('lobbyChOpts').children.length) { const box = $('lobbyChOpts'); MAPS.slice(0, depthsOpen()).forEach((C, i) => { const b = document.createElement('button'); b.dataset.v = i; b.textContent = C.title; box.appendChild(b); }); pickOpt('lobbyChOpts', String(Math.min(hubDepth, depthsOpen() - 1)), (v) => { $('lobbyCh').value = v; }); $('lobbyCh').value = Math.min(hubDepth, depthsOpen() - 1); }
+  if (isHost && $('lobbyChOpts').dataset.open !== String(depthsOpen())) {
+    const box = $('lobbyChOpts'), open = depthsOpen(); box.innerHTML = ''; box.dataset.open = open;
+    MAPS.forEach((C, i) => { const b = document.createElement('button'); b.dataset.v = i; b.textContent = i < open ? C.title : `${C.title} · ${fmt(C.earn)} ₽`; if (i >= open) b.disabled = true; box.appendChild(b); });
+    const cur = Math.min(+$('lobbyCh').value || hubDepth, open - 1);
+    pickOpt('lobbyChOpts', String(cur), (v) => { $('lobbyCh').value = v; }); $('lobbyCh').value = cur;
+  }
   $('lobbyNote').textContent = isHost ? (lobbyPlayers.length < 2 ? 'Отправь код друзьям. Можно до четырёх человек.' : `В комнате ${lobbyPlayers.length} из 4.`) : 'Хост скоро начнёт.';
 }
 
@@ -714,7 +735,7 @@ function startGame(m) {
     yaw = Math.PI * 0.75; pitch = 0; // смотрим в глубь
     G.myIndex = list.findIndex((p) => p.id === me.id);
     mode = 'game'; hostLast = performance.now();
-    renderFuses(); renderTeam();
+    renderFuses(); renderTeam(); renderTasks();
     $('hud').classList.add('on'); show(null);
     setObjective();
     const L = playIntro(G.run ? runIntro() : G.CH); G.intro = L; G.introT0 = G.time; if (G.ch === 0) setTimeout(() => { if (G && G.intro > 0) sound.intro(); }, 10500);
@@ -727,7 +748,8 @@ function runIntro() {
   SAVE.seen[key] = 1; saveP();
   const lines = [`«${SAVE.chan}». Выпуск №${SAVE.episodes + 1}.`, `${C.title}, ${C.place}. Три часа ночи.`];
   if (first) lines.push(...C.intro);
-  lines.push('Снимайте всё. Вернитесь к фургону до рассвета.');
+  if (G.night && G.night.id !== 'calm') lines.push(`${G.night.name}. ${G.night.text}`);
+  lines.push('У зрителей три задания. Проклятая находка светится фиолетовым. Вернитесь к фургону до рассвета.');
   return { title: C.title, place: C.place, intro: lines };
 }
 function playIntro(CH) {
@@ -771,6 +793,7 @@ function choosePerks() {
 // главное меню и фургон между вылазками
 let MENU = null;
 function startAttract() {
+  $('tasks').innerHTML = '';
   $('phone').classList.remove('on'); $('phoneDim').classList.remove('on'); openGallery(false);
   setupComposerIfNeeded();
   newScene(); G = null; scene.add(camera);
@@ -809,6 +832,11 @@ function applyTook(m) {
   if (it.kind === 'loot') {
     const v = Math.round(it.loot.value * (G.run ? G.CH.mult || 1 : 1 + G.ch * 0.4)); G.loot += v; G.collected++;
     if (m.by === me.id) { log(`${it.loot.name} · ${v} ₽`); sound.pickup(); } else log(`${who}: ${it.loot.name.toLowerCase()} · ${v} ₽`);
+    if (G.run) { taskSet('loot', G.collected); taskSet('allloot', G.collected); }
+    if (it.cursed) {
+      G.cursedTaken = true; if (it.glow) it.glow.intensity = 0; sound.stinger(); G.shake = 1; log(m.by === me.id ? 'Она почувствовала. Она идёт за тобой' : `${who} взял проклятую вещь. Она идёт`, 6000);
+      if (isHost) { const M = G.m; const tp = m.by === me.id ? G.pos : (G.players.get(m.by) || { pos: G.pos }).pos; M.gone = Math.min(M.gone, 1.5); if (!M.g) { M.mode = 1; M.dest = tp.clone(); M.field = null; } }
+    }
     renderFuses();
   } else if (C && it.kind === C.kind) {
     G.collected = G.items.filter((i) => i.kind === C.kind && i.taken).length;
@@ -820,6 +848,7 @@ function applyTook(m) {
   } else if (it.kind === 'note') {
     G.notes = Math.min(G.CH.notes.length, (G.notes || 0) + 1);
     if (m.by === me.id) { sound.paper(); openNote(G.notes - 1); } else log(`${who} нашёл записку`);
+    if (G.run) taskSet('notes', G.notes);
   } else if (m.by === me.id) { G.bat = Math.min(100, G.bat + 45); sound.battery(); log('Свежая батарейка'); }
   if (m.by === me.id) G.pendingPick = -1;
   setObjective();
@@ -917,6 +946,7 @@ function hostMonster(dt) {
   M.flashFreeze = Math.max(0, (M.flashFreeze || 0) - dt);
   const lit = alive.some((p) => !(M.fl && p.pos.distanceTo(M.pos) < 10) && isLitBy(p, M.pos)) || inSafeLight(M.pos, 0) || M.flashFreeze > 0;
   M.fz = lit;
+  if (lit && G.run && inSafeLight(M.pos, 0)) taskBump('flare', 1);
   if (lit) {
     M.frozenT += dt; M.moving = false; M.mode = 2;
     if (M.frozenT > 9) { M.g = true; M.gone = 4 + Math.random() * 4; M.fz = false; }
@@ -931,7 +961,7 @@ function hostMonster(dt) {
     const sees = d < (p.flash ? 22 : p.crouch ? 2.2 : 4.5) && lineOfSight(maze, M.pos, p.pos);
     if (sees && d < sd) { sd = d; seen = p; }
     const wet = !!G.world.water && p.moving;
-    const hears = d < (p.noisy ? 20 : p.running ? (p.soft ? 9 : 15) : wet ? (p.crouch ? 3 : 9) : p.moving && !p.crouch ? 4 : 0);
+    const hears = d < (G.night.hear || 1) * (p.noisy ? 20 : p.running ? (p.soft ? 9 : 15) : wet ? (p.crouch ? 3 : 9) : p.moving && !p.crouch ? 4 : 0);
     if (hears && M.mode < 2) { M.mode = 1; M.dest = p.pos.clone(); M.field = null; }
   }
   if (seen) { if (M.mode !== 2) M.field = null; M.mode = 2; M.dest = seen.pos.clone(); M.lostT = 0; }
@@ -945,7 +975,7 @@ function hostMonster(dt) {
   }
   M.pathT -= dt;
   if (M.pathT <= 0 || !M.field) { const [tx, ty] = toTile(M.dest); M.field = bfs(maze.grid, maze.G, tx, ty); M.pathT = M.mode === 2 ? 0.3 : 1.5; }
-  const speed = (M.mode === 2 ? MC.speed + (G.diff ? 0.6 : 0) + (G.collected + G.stDone) * 0.05 : M.mode === 1 ? 2.6 : 1.4) * (G.weak ? 0.8 : 1);
+  const speed = (G.night.speed || 1) * (M.mode === 2 ? MC.speed + (G.diff ? 0.6 : 0) + (G.collected + G.stDone) * 0.05 : M.mode === 1 ? 2.6 : 1.4) * (G.weak ? 0.8 : 1);
   let goal;
   if (M.mode === 2 && seen && sd < TILE * 1.6) goal = seen.pos;
   else {
@@ -1162,7 +1192,7 @@ function takePhoto() {
   G.flashT = 0.12; sound.click(); if (sound.ctx) sound.noise(0.25, 2500, 1, 0.3, sound.out(1, 0.4), 'highpass');
   send({ t: 'camflash', p: [G.pos.x, G.pos.z] }); if (isHost) G.m.flashFreeze = G.m.pos.distanceTo(G.pos) < 8 ? 1.5 : G.m.flashFreeze;
   const it = { id: me.id + ':' + (G.mediaN = (G.mediaN || 0) + 1), by: me.id, name: S.nick, kind: 'photo', t0: G.time, score: res.score, cat: res.cat, n: 1, frames: [] , own: true };
-  addMedia(it); G.photos.push(it);
+  addMedia(it); G.photos.push(it); taskShot(res.cat, it);
   const ts = '● ' + clockTxt(); grab(320, 180, 0.75, (c, x) => { stamp(x, 320, 180, ts); it.frames[0] = { img: c.toDataURL('image/jpeg', 0.72), s: res.score, c: res.cat }; $('phThumb').src = it.frames[0].img; });
   send(mediaMeta(it));
   renderPhone();
@@ -1179,6 +1209,7 @@ function recFrame() {
   G.memUsed += 1; it.n = k + 1;
   it.frames[k] = { img: null, s: res.score, c: res.cat };
   if (res.score > it.best) { it.best = res.score; it.cat = res.cat; }
+  taskShot(res.cat, it, true); streamFrame(res);
   it.score = Math.round(it.frames.reduce((a, f) => a + f.s, 0) * 0.3 + it.best);
   const ts = '● ' + clockTxt(); grab(192, 108, 0.6, (c, x) => { stamp(x, 192, 108, ts); it.frames[k].img = c.toDataURL('image/jpeg', 0.58); if (k % 6 === 0) $('phThumb').src = it.frames[k].img; });
   if (it.n - R.sent >= 4) { R.sent = it.n; send(mediaMeta(it)); }
@@ -1217,6 +1248,63 @@ function uploadMedia() {
   let k = 0; const tick = () => { if (k >= q.length || !net) return; send(q[k++]); setTimeout(tick, 220); }; setTimeout(tick, 600);
 }
 function episodeList() { return [...EP.media.values()].filter((x) => x.n).sort((a, b) => a.t0 - b.t0); }
+// ---------------- Задания зрителей ----------------
+function renderTasks() {
+  const box = $('tasks'); if (!G || !G.run || !G.tasks) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="lbl">задания зрителей</div>';
+  for (const t of G.tasks) { const d = document.createElement('div'); d.className = t.done ? 'done' : ''; const prog = t.done ? '' : t.need > 1 ? ` ${t.video ? Math.floor(t.have / 2) + '/' + t.need / 2 + ' с' : t.have + '/' + t.need}` : ''; d.textContent = `${t.done ? '✓' : '·'} ${t.text}${prog} · ${fmt(t.money)} ₽`; box.appendChild(d); }
+}
+function completeTask(t, by) {
+  t.done = true; t.have = t.need; sound.pickup(); sound.battery();
+  const who = !by || by === me.id ? '' : ` (${(G.players.get(by) || { name: 'друг' }).name})`;
+  log(`Задание выполнено${who}: ${t.text.toLowerCase()} · +${fmt(t.money)} ₽`, 5000); renderTasks();
+}
+function taskSet(id, v) {
+  if (!G || !G.tasks) return; const t = G.tasks.find((x) => x.id === id); if (!t || t.done) return;
+  t.have = Math.max(t.have, v); if (t.have >= t.need) { completeTask(t); send({ t: 'tk', id }); } else renderTasks();
+}
+function taskBump(id, n = 1) { if (!G || !G.tasks) return; const t = G.tasks.find((x) => x.id === id); if (!t || t.done) return; taskSet(id, t.have + n); }
+function taskShot(cat, it, video) {
+  if (!G || !G.tasks) return;
+  for (const t of G.tasks) {
+    if (t.done || !t.cat || !t.cat.includes(cat)) continue;
+    if (t.video) { if (video) taskBump(t.id); continue; }
+    it._tk = it._tk || {}; if (it._tk[t.id]) continue; it._tk[t.id] = 1; taskBump(t.id);
+  }
+}
+// ---------------- Стрим: зрители, чат, донаты во время записи ----------------
+function streamFrame(res) {
+  const st = G.stream; if (!st) return;
+  const base = 12 + Math.sqrt(SAVE.subs || 0) * 4;
+  const target = base + res.score * 1.4 * (G.night.views || 1);
+  st.viewers = Math.round(st.viewers + (target - st.viewers) * (target > st.viewers ? 0.35 : 0.08));
+  st.peak = Math.max(st.peak, st.viewers);
+  const k = (G.night.donate || 1) * (hasGear('lens') ? 1.2 : 1);
+  if (Math.random() < Math.min(0.08, res.score / 40000) * k) {
+    const d = donation(res.score, k); st.donated += d.sum; G.donate = (G.donate || 0) + d.sum;
+    pushChat({ who: d.who, text: `донат ${d.sum} ₽ — ${d.text}`, don: true }); sound.pickup();
+  }
+  const scary = res.cat !== 'nothing';
+  if (Math.random() < (scary ? 0.9 : 0.35)) pushChat(chatLine(res.cat));
+  if (scary && Math.random() < 0.5) pushChat(chatLine(res.cat));
+}
+function pushChat(l) {
+  const st = G.stream; st.lines.push(l); if (st.lines.length > 6) st.lines.shift();
+  const box = $('phChat'); box.innerHTML = '';
+  for (const x of st.lines) { const d = document.createElement('div'); if (x.don) d.className = 'don'; const b = document.createElement('b'); b.textContent = x.who + ' '; d.append(b, x.text); box.appendChild(d); }
+}
+function updateStream(dt) {
+  const st = G.stream; if (!st) return;
+  if (!G.rec) { st.viewers = Math.max(0, Math.round(st.viewers * (1 - dt * 0.6))); if (st.lines.length && !G.camMode) { st.lines = []; $('phChat').innerHTML = ''; } }
+  const live = G.rec ? `● LIVE · ${fmt(st.viewers)} зрителей` : ''; if ($('phLive').textContent !== live) $('phLive').textContent = live;
+}
+// гроза: молния, через секунду-две гром
+function updateWeather(dt) {
+  if (!G.night || !G.night.lightning) return;
+  G.boltT = (G.boltT ?? 6 + Math.random() * 10) - dt;
+  if (G.boltT <= 0) { G.boltT = 7 + Math.random() * 14; G.bolt = 1; const d = 0.6 + Math.random() * 2; setTimeout(() => { if (sound.ctx) sound.noise(3 + Math.random() * 2, 90 + Math.random() * 60, 1, 1.1, sound.out(1, 1.2), 'lowpass'); }, d * 1000); }
+  G.bolt = Math.max(0, (G.bolt || 0) - dt * 3.2);
+}
 // Монтаж на экране результатов: все фрагменты по времени, видео идёт 2 кадра в секунду
 let montage = null;
 function startMontage(lost) {
@@ -1372,18 +1460,34 @@ function endRun(win, by) {
   if (G.rec) stopRec(); setPhone(false);
   const eps = episodeList(); // весь выпуск: фото и видео всей команды
   eps.forEach((p) => { p.views = Math.round((p.score || 0) * reach); });
-  const views = lost ? 0 : eps.reduce((a, p) => a + p.views, 0) * mult;
-  const newSubs = Math.round(views / 9);
-  const money = lost ? 0 : Math.round(G.loot + views / 25);
+  if (!lost && G.tasks) { if (G.cursedTaken) taskSet('cursed', 1); if (G.time <= 360 && G.collected >= 3) taskSet('fast', 1); }
+  const nightK = G.night.views || 1;
+  const views = lost ? 0 : Math.round(eps.reduce((a, p) => a + p.views, 0) * mult * nightK);
+  const tasksDone = (G.tasks || []).filter((t) => t.done), taskMoney = lost ? 0 : tasksDone.reduce((a, t) => a + t.money, 0);
+  const donated = G.donate || 0; // донаты приходят сразу, их не отнять
+  const newSubs = Math.round(views / 9) + (lost ? 0 : tasksDone.length * Math.round(20 + SAVE.subs * 0.01));
+  const money = (lost ? 0 : Math.round(G.loot + views / 25)) + taskMoney + donated;
   const before = depthsOpen();
   SAVE.subs += newSubs; SAVE.money += money; SAVE.earned = (SAVE.earned || 0) + money; SAVE.episodes++; SAVE.best = Math.max(SAVE.best, views); saveP();
+  // достижения
+  SAVE.ach = SAVE.ach || {}; SAVE.nights = SAVE.nights || {}; if (!lost) SAVE.nights[G.night.id] = 1;
+  const runInfo = { close: eps.some((p) => p.cat === 'monster_close'), allTasks: !lost && G.tasks && G.tasks.length === 3 && tasksDone.length === 3, cursed: !lost && G.cursedTaken, peak: G.stream ? G.stream.peak : 0, donated, mapsOpen: depthsOpen(), night: G.night.id, win: !lost };
+  const newAch = ACH.filter((a) => !SAVE.ach[a.id] && a.test(SAVE, runInfo));
+  for (const a of newAch) { SAVE.ach[a.id] = 1; SAVE.money += a.money; SAVE.earned += a.money; }
+  saveP();
   const after = depthsOpen();
   $('resTitle').textContent = lost ? (G.solo ? 'Камера разбита' : 'Тебя не вытащили') : `Выпуск №${SAVE.episodes} загружен`;
   $('resTitle').style.color = lost ? '#c9573f' : '';
   const st = $('resStats'); st.innerHTML = '';
   const stat = (v, l) => { const d = document.createElement('div'); d.innerHTML = '<b></b><span></span>'; d.firstChild.textContent = v; d.lastChild.textContent = l; st.appendChild(d); };
   stat(fmt(views), 'просмотров'); stat('+' + fmt(newSubs), 'подписчиков'); stat(fmt(money) + ' ₽', 'заработано'); stat(fmt(SAVE.subs), 'всего подписчиков');
-  if (lost) { const d = document.createElement('p'); d.className = 'note'; d.style.marginTop = '14px'; d.textContent = 'Всё, что ты снял и нашёл за эту ночь, осталось внизу.'; st.after(d); setTimeout(() => d.remove(), 60000); }
+  { const d = document.createElement('p'); d.className = 'note'; d.style.marginTop = '14px';
+    const parts = [`${G.night.name}${nightK !== 1 ? ` · просмотры ×${String(nightK).replace('.', ',')}` : ''}`, `задания ${tasksDone.length} из ${(G.tasks || []).length}${taskMoney ? ` · +${fmt(taskMoney)} ₽` : ''}`];
+    if (donated) parts.push(`донаты +${fmt(donated)} ₽`); if (G.stream && G.stream.peak) parts.push(`пик эфира ${fmt(G.stream.peak)} зрителей`);
+    d.textContent = parts.join(' · '); st.after(d); setTimeout(() => d.remove(), 60000);
+    for (const a of newAch) { const e = document.createElement('p'); e.className = 'note ach'; e.textContent = `Достижение: ${a.name} — ${a.text.toLowerCase()} · +${fmt(a.money)} ₽`; d.after(e); setTimeout(() => e.remove(), 60000); }
+  }
+  if (lost) { const d = document.createElement('p'); d.className = 'note'; d.style.marginTop = '14px'; d.textContent = 'Всё, что ты снял и нашёл за эту ночь, осталось внизу. Остались только донаты.'; st.after(d); setTimeout(() => d.remove(), 60000); }
   if (after > before) { const d = document.createElement('p'); d.className = 'note'; d.style.cssText = 'margin-top:14px;color:var(--ink)'; d.textContent = `Открыта новая карта: ${MAPS[after - 1].title}. И пришло сообщение от подписчика.`; st.after(d); setTimeout(() => d.remove(), 60000); }
   renderResCards(lost);
   startMontage(lost); uploadMedia();
@@ -1401,7 +1505,7 @@ function renderHub() {
   stat(fmt(SAVE.subs), 'подписчиков'); stat(fmt(SAVE.money) + ' ₽', 'на счету'); stat(fmt(SAVE.earned || 0) + ' ₽', 'заработано всего'); stat(String(SAVE.episodes), 'выпусков');
   const open = depthsOpen(); hubDepth = Math.min(hubDepth, open - 1);
   const box = $('depthOpts'); box.innerHTML = '';
-  MAPS.forEach((C, i) => { const b = document.createElement('button'); b.dataset.v = i; b.textContent = i < open ? C.title : `закрыто · ${fmt(C.earn)} ₽`; if (i >= open) b.disabled = true; box.appendChild(b); });
+  MAPS.forEach((C, i) => { const b = document.createElement('button'); b.dataset.v = i; b.textContent = i < open ? C.title : `${C.title} · ${fmt(C.earn)} ₽`; if (i >= open) b.disabled = true; box.appendChild(b); });
   pickOpt('depthOpts', String(hubDepth), (v) => { hubDepth = +v; renderDepthNote(); });
   renderDepthNote();
   const mail = $('hubMail'); mail.innerHTML = '';
@@ -1611,7 +1715,7 @@ function dropHanger(h) {
 
 function updateGame(dt, t) {
   if (!G.over) G.time += dt;
-  if (!G.over && G.intro <= 0) updatePhone(dt);
+  if (!G.over && G.intro <= 0) { updatePhone(dt); if (G.run) { updateStream(dt); updateWeather(dt); } }
   const M = G.m;
   // вступление
   if (G.intro > 0) {
@@ -1637,7 +1741,7 @@ function updateGame(dt, t) {
     G.stepAcc += mv * dt; G.bob += mv * dt * 2.3;
     if (G.stepAcc > (G.running ? 2.0 : G.crouch ? 1.3 : 1.7)) { G.stepAcc = 0; sound.step(G.running, !!G.world.water, G.crouch ? 0.3 : 1); }
   } else G.vel.set(0, 0, 0);
-  if (G.flashOn && !G.down && G.intro <= 0) G.bat = Math.max(0, G.bat - dt * (G.diff ? 1.35 : 1.0) * (hasPerk('battery') ? 0.67 : 1) * (G.ch >= 2 ? 1.15 : 1));
+  if (G.flashOn && !G.down && G.intro <= 0) G.bat = Math.max(0, G.bat - dt * (G.night.bat || 1) * (G.diff ? 1.35 : 1.0) * (hasPerk('battery') ? 0.67 : 1) * (G.ch >= 2 ? 1.15 : 1));
   G.forceOff = Math.max(0, G.forceOff - dt);
   const mDist = M.g ? 99 : Math.hypot(M.pos.x - G.pos.x, M.pos.z - G.pos.z);
   let flick = false;
@@ -1866,7 +1970,7 @@ function updateVisuals(dt, t) {
   // глаза привыкают к темноте: без фонаря через пару секунд видно больше
   const dark = !(G.flashOn && G.bat > 0) || G.down;
   G.adapt = (G.adapt ?? 0) + ((dark ? 1 : 0) - (G.adapt ?? 0)) * damp(dark ? 0.7 : 3, dt);
-  { const o = G.world.outdoor ? 1.6 : 1; G.amb.intensity = (0.5 + G.adapt * 1.1) * o; G.hemi.intensity = (0.4 + G.adapt * 0.7) * o; }
+  { const o = G.world.outdoor ? 1.6 : 1, b = (G.bolt || 0) > 0 ? (Math.random() < 0.8 ? G.bolt : 0) * (G.world.outdoor ? 14 : 4) : 0; G.amb.intensity = (0.5 + G.adapt * 1.1) * o + b; G.hemi.intensity = (0.4 + G.adapt * 0.7) * o + b; }
   renderer.toneMappingExposure = S.bri * (1.1 + G.adapt * 0.5);
 }
 
@@ -1885,6 +1989,12 @@ $('bGoRun').onclick = () => { SAVE.chan = ($('chanName').value.trim() || SAVE.ch
 $('chanName').addEventListener('input', () => { SAVE.chan = $('chanName').value.slice(0, 24) || 'Ночной эфир'; saveP(); if (MENU) MENU.setName(SAVE.chan); });
 $('bShop').onclick = () => { renderShop(); show('shop'); };
 $('bShopBack').onclick = () => { renderHub(); show('hub'); };
+$('bAch').onclick = () => {
+  const box = $('jlist'); box.innerHTML = ''; SAVE.ach = SAVE.ach || {};
+  const n = ACH.filter((a) => SAVE.ach[a.id]).length; const h = document.createElement('div'); h.className = 'lbl'; h.textContent = `достижения · ${n} из ${ACH.length}`; box.appendChild(h);
+  for (const a of ACH) { const d = document.createElement('div'); d.className = 'jentry' + (SAVE.ach[a.id] ? '' : ' locked'); d.innerHTML = '<div class="lbl"></div><p></p>'; d.firstChild.textContent = (SAVE.ach[a.id] ? '✓ ' : '') + a.name + ' · ' + fmt(a.money) + ' ₽'; d.lastChild.textContent = a.text; box.appendChild(d); }
+  journalBack = 'hub'; show('journal');
+};
 $('bMail').onclick = () => { const box = $('jlist'); box.innerHTML = ''; for (let i = depthsOpen() - 1; i >= 0; i--) { const d = document.createElement('div'); d.className = 'jentry'; d.innerHTML = '<div class="lbl"></div><p></p>'; d.firstChild.textContent = MAPS[i].msg.from; d.lastChild.textContent = MAPS[i].msg.text; box.appendChild(d); } journalBack = 'hub'; show('journal'); };
 $('bJournal2').onclick = () => { renderJournal(); journalBack = 'hub'; show('journal'); };
 $('bHubBack').onclick = () => show('menu');

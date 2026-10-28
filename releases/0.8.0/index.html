@@ -51,7 +51,17 @@
   .opts button { font-size: 15px; color: var(--dim); padding: 2px 0; border-bottom: 1px solid transparent; }
   .opts button:hover { color: var(--ink); }
   .opts button.act { color: var(--ink); border-bottom-color: var(--ink); }
-  #depthOpts, #lobbyChOpts { display: grid; grid-template-columns: repeat(2, minmax(0, max-content)); gap: 6px 34px; }
+  #depthOpts, #lobbyChOpts { display: grid; grid-template-columns: repeat(2, max-content); gap: 7px 34px; justify-items: start; }
+  #depthOpts button, #lobbyChOpts button { text-align: left; }
+  #depthOpts button:disabled, #lobbyChOpts button:disabled { color: var(--faint); cursor: default; }
+  #tasks { position: absolute; left: 3vw; top: 22vh; font-size: 12px; line-height: 1.7; color: var(--dim); text-shadow: 0 0 6px #000; max-width: 34vw; }
+  #tasks .lbl { margin-bottom: 4px; } #tasks .done { color: #7fd18a; }
+  #phone.on ~ #tasks { display: none; }
+  #phLive { position: absolute; left: 3%; top: 11%; font-size: clamp(9px, .8vw, 12px); color: #fff; } #phLive:not(:empty) { background: rgba(216,50,31,.85); padding: 2px 8px; border-radius: 3px; }
+  #phChat { position: absolute; left: 3%; bottom: 12%; width: 38%; font-size: clamp(9px, .78vw, 12px); line-height: 1.45; color: rgba(255,255,255,.88); text-shadow: 0 1px 2px #000; }
+  #phChat b { color: #9fc7ff; font-weight: normal; } #phChat .don { color: #ffd65a; } #phChat .don b { color: #ffd65a; }
+  .jentry.locked { opacity: .45; }
+  .note.ach { color: #ffd65a !important; }
   .colors { display: flex; gap: 10px; margin-top: 12px; }
   .colors div { width: 16px; height: 16px; cursor: pointer; outline: 1px solid transparent; outline-offset: 3px; }
   .colors div.sel { outline-color: var(--ink); }
@@ -207,12 +217,14 @@
     <div class="top"><b id="phTime">03:00</b><b id="phRec"></b><b><span id="phMem"></span> · <span id="phBat"></span></b></div>
     <div class="side"><div class="modes"><span class="mv">ВИДЕО</span><span class="mp">ФОТО</span></div><div class="shut"></div><div class="thumb"><img id="phThumb" alt=""></div></div>
     <div class="zoom">1×</div>
+    <div id="phLive"></div><div id="phChat"></div>
     <div class="hint">ЛКМ — снять · R или колесо — фото/видео · Tab — монтаж · Q — убрать</div>
   </div></div></div>
   <div id="gallery"><div class="lbl" id="galHead"></div><div id="galList"></div></div>
   <div id="clock"></div>
 
   <div id="team"></div>
+  <div id="tasks"></div>
   <div id="obj"></div>
   <div id="fuses"><span id="fuseLbl"></span><div class="dots"></div><div id="flareCnt" style="margin-top:10px"></div></div>
   <div class="bars">
@@ -364,6 +376,7 @@
         <button class="item" id="bGoRun">Ехать на вылазку</button>
         <button class="item small" id="bShop">Снаряжение</button>
         <button class="item small" id="bMail">Сообщения</button>
+        <button class="item small" id="bAch">Достижения</button>
         <button class="item small" id="bJournal2">Записки</button>
         <button class="item small" id="bHubBack">В меню</button>
       </nav>
