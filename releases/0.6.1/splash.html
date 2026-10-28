@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Ночной эфир</title>
+<style>
+  @font-face { font-family: Cormorant; src: url(fonts/Cormorant.ttf); font-weight: 300 700; }
+  @font-face { font-family: CormorantI; src: url(fonts/Cormorant-Italic.ttf); font-weight: 300 700; }
+  @font-face { font-family: PTMono; src: url(fonts/PTMono.ttf); }
+  html, body { margin: 0; height: 100%; background: #000; color: #d8d0c2; -webkit-app-region: drag; user-select: none; overflow: hidden; }
+  body { display: flex; flex-direction: column; justify-content: flex-end; padding: 0 34px 30px; box-sizing: border-box;
+    background: radial-gradient(ellipse at 78% 20%, rgba(255,226,180,.07), transparent 55%), #000; }
+  h1 { font-family: Cormorant, Georgia, serif; font-weight: 500; font-size: 46px; line-height: .9; margin: 0 0 26px; }
+  h1 em { font-family: CormorantI, Georgia, serif; font-style: italic; font-weight: 400; color: rgba(216,208,194,.5); }
+  #s { font-family: PTMono, monospace; font-size: 12px; color: rgba(216,208,194,.55); min-height: 16px; }
+  .bar { height: 1px; background: rgba(216,208,194,.12); margin-top: 10px; }
+  .bar b { display: block; height: 100%; width: 0; background: #d8d0c2; transition: width .15s; }
+</style></head>
+<body>
+  <h1>Ночной<br><em>эфир</em></h1>
+  <div id="s"></div>
+  <div class="bar"><b id="b"></b></div>
+  <script>
+    function set(t, p) { document.getElementById('s').textContent = t; if (p != null) document.getElementById('b').style.width = Math.round(p * 100) + '%'; }
+  </script>
+</body></html>

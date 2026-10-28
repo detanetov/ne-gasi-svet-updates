@@ -1,15 +1,19 @@
 {
- "version": "0.6.0",
- "minShell": "1.0.0",
- "notes": "Ночной эфир: канал, камера, находки, снаряжение, персонажи",
+ "version": "0.6.1",
+ "minShell": "1.1.0",
+ "notes": "Новое название и иконка: Ночной эфир",
  "files": {
   "icon.png": {
-   "sha256": "42e22261b55ed31b9b8a3c4801bf2c6a5037aa770dad0cf410b5285b8cba5ac4",
-   "size": 64313
+   "sha256": "122987066a6828e7283505447b2a50cec093bc68d231bfce34b5f044dffac8d2",
+   "size": 11064
   },
   "index.html": {
    "sha256": "164b70f137cc94027bc5bb9327c374ec8b323e9ee54b75ed1ed28b619ef7a5e1",
    "size": 23511
+  },
+  "splash.html": {
+   "sha256": "ae16a3d11e02cd2b2377fcafa2e92d21d57008a16772322ecf54c16c350f449d",
+   "size": 1573
   },
   "fonts/Cormorant-Italic.ttf": {
    "sha256": "0f48ea6abb2084537854f7174c470991a463b13036309e3b50a81511611c530d",
