@@ -12,7 +12,7 @@ import { CHAPTERS, PERKS, TOTAL_NOTES, finalEnding } from './chapters.js';
 import { MAPS, mapsOpen, GOALS } from './maps.js';
 import { makeFurniture } from './kits.js';
 import { pickNight, makeTasks, chatLine, donation, ACH, CLASSES } from './events.js';
-import { makeAvatar as makeAvatar2, poseAvatar, LOOK_OPTIONS, randomLook, cleanLook } from './avatar.js';
+import { makeAvatar as makeAvatar2, poseAvatar, LOOK_OPTIONS, LOOK_GROUPS, randomLook, cleanLook } from './avatar.js';
 import { DEPTH_SUBS, GOAL_SUBS, GEAR, LOOT, MESSAGES, comments, fmt } from './channel.js';
 import { buildVanScene } from './vanscene.js';
 import { GTAOPass } from '../lib/postprocessing/GTAOPass.js';
@@ -1777,33 +1777,56 @@ function renderShop() {
 }
 // превью персонажа — отдельный маленький рендер
 let PV = null;
+let customTab = 0;
 function renderCustom() {
+  SAVE.look = cleanLook(SAVE.look);
+  const tabs = $('customTabs'); tabs.innerHTML = '';
+  LOOK_GROUPS.forEach((name, gi) => { const b = document.createElement('button'); b.textContent = name; if (gi === customTab) b.className = 'act'; b.onclick = () => { customTab = gi; sound.tick(); renderCustom(); }; tabs.appendChild(b); });
   const box = $('customList'); box.innerHTML = '';
   for (const [k, o] of Object.entries(LOOK_OPTIONS)) {
-    const row = document.createElement('div'); row.className = 'crow';
-    const val = o.values[SAVE.look[k]]; const isCol = String(val).startsWith('#');
-    row.innerHTML = `<span></span><span class="v"><button>‹</button><span class="val"></span><button>›</button></span>`;
-    row.firstChild.textContent = o.label;
-    const vEl = row.querySelector('.val'); if (isCol) { vEl.innerHTML = '<i></i>'; vEl.firstChild.style.background = val; } else vEl.textContent = val;
-    const [prev, next] = row.querySelectorAll('button');
-    const step = (d) => { SAVE.look[k] = (SAVE.look[k] + d + o.values.length) % o.values.length; saveP(); sound.tick(); renderCustom(); };
-    prev.onclick = () => step(-1); next.onclick = () => step(1);
-    box.appendChild(row);
+    if (o.g !== customTab) continue;
+    const row = document.createElement('div'); row.className = 'crow2';
+    const lb = document.createElement('div'); lb.className = 'lbl'; lb.textContent = o.label; row.appendChild(lb);
+    const vals = document.createElement('div'); vals.className = String(o.values[0]).startsWith('#') ? 'sw' : 'chips';
+    o.values.forEach((v, i) => {
+      const b = document.createElement('button'); if (SAVE.look[k] === i) b.className = 'act';
+      if (String(v).startsWith('#')) { b.style.background = v; b.title = ''; } else b.textContent = v;
+      b.onclick = () => { if (SAVE.look[k] === i) return; SAVE.look[k] = i; if (k === 'gender' && i === 1) SAVE.look.beard = 0; saveP(); sound.tick(); renderCustom(); };
+      vals.appendChild(b);
+    });
+    row.appendChild(vals); box.appendChild(row);
   }
   buildPreview();
 }
 function buildPreview() {
   if (!PV) {
-    const r = new THREE.WebGLRenderer({ canvas: $('preview'), antialias: true, alpha: true }); r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace;
-    const sc = new THREE.Scene(); const cam = new THREE.PerspectiveCamera(30, 520 / 640, 0.05, 20); cam.position.set(0, 1.15, 4.3); cam.lookAt(0, 0.95, 0);
-    const key = new THREE.DirectionalLight(0xffe8cc, 2.4); key.position.set(1.5, 3, 3); sc.add(key);
-    const rim = new THREE.DirectionalLight(0x8090c0, 1.4); rim.position.set(-2, 2, -3); sc.add(rim); sc.add(new THREE.AmbientLight(0x404858, 1));
-    PV = { r, sc, cam, A: null, t: 0 };
-    const loop = () => { requestAnimationFrame(loop); if (!$('custom').classList.contains('on') || !PV.A) return; PV.t += 0.016; PV.A.group.rotation.y = Math.PI + Math.sin(PV.t * 0.5) * 0.9; poseAvatar(PV.A, { moving: false, dt: 0.016 }); PV.r.render(PV.sc, PV.cam); };
+    const r = new THREE.WebGLRenderer({ canvas: $('preview'), antialias: true, alpha: true }); r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace; r.shadowMap.enabled = true;
+    const sc = new THREE.Scene(); const cam = new THREE.PerspectiveCamera(30, 520 / 640, 0.05, 20);
+    const key = new THREE.DirectionalLight(0xffe8cc, 2.6); key.position.set(1.5, 3, 3); key.castShadow = true; sc.add(key);
+    const rim = new THREE.DirectionalLight(0x8090c0, 1.6); rim.position.set(-2, 2, -3); sc.add(rim); sc.add(new THREE.HemisphereLight(0x8090a8, 0x302820, 1.0));
+    const fl = new THREE.Mesh(new THREE.CircleGeometry(1.2, 40), new THREE.MeshStandardMaterial({ color: 0x1c1c1e, roughness: 0.9 })); fl.rotation.x = -Math.PI / 2; fl.receiveShadow = true; sc.add(fl);
+    PV = { r, sc, cam, A: null, t: 0, rot: 0, drag: null, camT: new THREE.Vector3(0, 1.15, 4.3), lookT: new THREE.Vector3(0, 0.95, 0), look: new THREE.Vector3(0, 0.95, 0) };
+    cam.position.copy(PV.camT);
+    const cv = $('preview');
+    cv.addEventListener('pointerdown', (e) => { PV.drag = e.clientX; cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointermove', (e) => { if (PV.drag != null) { PV.rot += (e.clientX - PV.drag) * 0.012; PV.drag = e.clientX; } });
+    cv.addEventListener('pointerup', () => { PV.drag = null; });
+    const loop = () => {
+      requestAnimationFrame(loop); if (!$('custom').classList.contains('on') || !PV.A) return; PV.t += 0.016;
+      const face = customTab >= 1 && customTab <= 3;
+      PV.camT.set(0, face ? 1.66 : 1.15, face ? 1.35 : 4.3); PV.lookT.set(0, face ? 1.63 : 0.95, 0);
+      PV.cam.position.lerp(PV.camT, 0.12); PV.look.lerp(PV.lookT, 0.12); PV.cam.lookAt(PV.look);
+      if (PV.drag == null) PV.rot += 0.003;
+      PV.A.group.rotation.y = Math.PI + Math.sin(PV.rot) * 0.8 + (PV.drag != null ? 0 : 0);
+      poseAvatar(PV.A, { moving: false, dt: 0.016, relaxed: true }); PV.r.render(PV.sc, PV.cam);
+    };
     loop();
   }
-  if (PV.A) PV.sc.remove(PV.A.group);
-  PV.A = makeAvatar2(S.nick, SAVE.look); PV.sc.add(PV.A.group);
+  clearTimeout(PV.bt); $('previewBusy').style.opacity = 1;
+  PV.bt = setTimeout(() => {
+    if (PV.A) PV.sc.remove(PV.A.group);
+    PV.A = makeAvatar2(S.nick, SAVE.look, null, { chan: SAVE.chan }); PV.sc.add(PV.A.group); $('previewBusy').style.opacity = 0;
+  }, 40);
 }
 
 // ---------------- Кадр ----------------

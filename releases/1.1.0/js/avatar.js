@@ -1,7 +1,12 @@
 // Персонаж игрока: детальная модель и настраиваемая внешность
 import * as THREE from 'three';
+import { makeHuman, poseHuman, LOOK_OPTIONS, LOOK_GROUPS, DEFAULT_LOOK, randomLook, cleanLook } from './human.js';
+export { LOOK_OPTIONS, LOOK_GROUPS, DEFAULT_LOOK, randomLook, cleanLook };
+export function makeAvatar(name, look, tag, opts) { return makeHuman(name, look, tag, opts); }
+export function poseAvatar(A, o) { return A.human ? poseHuman(A, o) : poseOld(A, o); }
+void makeAvatarOld;
 
-export const LOOK_OPTIONS = {
+const LOOK_OPTIONS_OLD = {
   skin: { label: 'кожа', values: ['#f1c9a5', '#d9a77f', '#b57d55', '#8a5a3b', '#5e3b26'] },
   hair: { label: 'волосы', values: ['#1b1410', '#4a2e1a', '#8a5a2b', '#c9a06a', '#d8d2c8', '#8a1f1a'] },
   hairStyle: { label: 'причёска', values: ['коротко', 'ёжик', 'длинные', 'хвост', 'лысый'] },
@@ -14,9 +19,9 @@ export const LOOK_OPTIONS = {
   glasses: { label: 'очки', values: ['нет', 'обычные', 'тёмные'] },
   backpack: { label: 'рюкзак', values: ['нет', 'есть'] }
 };
-export const DEFAULT_LOOK = { skin: 1, hair: 0, hairStyle: 0, hat: 0, hatColor: 0, jacket: 0, jacketStyle: 0, pants: 0, shoes: 0, glasses: 0, backpack: 1 };
-export function randomLook() { const l = {}; for (const k in LOOK_OPTIONS) l[k] = Math.floor(Math.random() * LOOK_OPTIONS[k].values.length); return l; }
-export function cleanLook(l) { const o = { ...DEFAULT_LOOK }; if (l) for (const k in LOOK_OPTIONS) { const v = l[k] | 0; if (v >= 0 && v < LOOK_OPTIONS[k].values.length) o[k] = v; } return o; }
+const DEFAULT_LOOK_OLD = { skin: 1, hair: 0, hairStyle: 0, hat: 0, hatColor: 0, jacket: 0, jacketStyle: 0, pants: 0, shoes: 0, glasses: 0, backpack: 1 };
+function randomLookOld() { const l = {}; for (const k in LOOK_OPTIONS) l[k] = Math.floor(Math.random() * LOOK_OPTIONS[k].values.length); return l; }
+function cleanLookOld(l) { const o = { ...DEFAULT_LOOK }; if (l) for (const k in LOOK_OPTIONS) { const v = l[k] | 0; if (v >= 0 && v < LOOK_OPTIONS[k].values.length) o[k] = v; } return o; }
 
 // ткань: мелкая фактура, чтобы одежда не была пластиковой
 let FABRIC = null;
@@ -36,8 +41,8 @@ function tube(r0, r1, len, mat, seg = 12) {
 }
 const ball = (r, mat, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), mat); m.scale.set(sx, sy, sz); return m; };
 
-export function makeAvatar(name, lookIn, tagSprite) {
-  const L = cleanLook(lookIn), O = LOOK_OPTIONS;
+function makeAvatarOld(name, lookIn, tagSprite) {
+  const L = cleanLookOld(lookIn), O = LOOK_OPTIONS_OLD;
   const col = (k) => new THREE.Color(O[k].values[L[k]]);
   const fab = fabric();
   const skin = new THREE.MeshStandardMaterial({ color: col('skin'), roughness: 0.65 });
@@ -177,7 +182,7 @@ export function makeAvatar(name, lookIn, tagSprite) {
 }
 
 // поза: ходьба, присед, лежит; pitch — куда смотрит (рука с фонарём следует)
-export function poseAvatar(A, { moving, running, crouch, down, pitch = 0, dt = 0.016, relaxed = false, phone = false, rec = false }) {
+function poseOld(A, { moving, running, crouch, down, pitch = 0, dt = 0.016, relaxed = false, phone = false, rec = false }) {
   A.walk += dt * (moving ? (running ? 11 : crouch ? 5 : 7.5) : 0);
   const s = moving ? Math.sin(A.walk) : 0, amp = running ? 0.8 : crouch ? 0.35 : 0.55;
   A.legs.forEach((l, i) => {
