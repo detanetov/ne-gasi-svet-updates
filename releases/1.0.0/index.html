@@ -57,6 +57,13 @@
   #tasks { position: absolute; left: 3vw; top: 22vh; font-size: 12px; line-height: 1.7; color: var(--dim); text-shadow: 0 0 6px #000; max-width: 34vw; }
   #tasks .lbl { margin-bottom: 4px; } #tasks .done { color: #7fd18a; }
   #phone.on ~ #tasks { display: none; }
+  #abil { position: absolute; left: 3vw; bottom: 13vh; font-size: 12px; color: var(--dim); text-shadow: 0 0 6px #000; }
+  #radar { position: absolute; left: 50%; top: 14vh; transform: translateX(-50%); white-space: pre; text-align: center; font-size: 14px; color: #9fe0ff; text-shadow: 0 0 8px #000; }
+  #hideView { position: absolute; inset: 0; display: none; pointer-events: none; overflow: hidden; }
+  #hideView.on { display: block; }
+  #hideView .win { position: absolute; left: 30vw; right: 30vw; top: 36vh; bottom: 38vh; box-shadow: 0 0 0 100vmax #020202; background: repeating-linear-gradient(#020202 0 2.6vh, transparent 2.6vh 4.6vh); }
+  #hideView span { position: absolute; left: 50%; bottom: 8vh; transform: translateX(-50%); font-size: 13px; color: var(--dim); }
+  .gear.cur b { color: #ffd65a; } .gear .ab { display: block; color: #9fe0ff; margin-top: 2px; }
   #phLive { position: absolute; left: 3%; top: 11%; font-size: clamp(9px, .8vw, 12px); color: #fff; } #phLive:not(:empty) { background: rgba(216,50,31,.85); padding: 2px 8px; border-radius: 3px; }
   #phChat { position: absolute; left: 3%; bottom: 12%; width: 38%; font-size: clamp(9px, .78vw, 12px); line-height: 1.45; color: rgba(255,255,255,.88); text-shadow: 0 1px 2px #000; }
   #phChat b { color: #9fc7ff; font-weight: normal; } #phChat .don { color: #ffd65a; } #phChat .don b { color: #ffd65a; }
@@ -230,6 +237,9 @@
 
   <div id="team"></div>
   <div id="tasks"></div>
+  <div id="abil"></div>
+  <div id="radar"></div>
+  <div id="hideView"><div class="win"></div><span>в шкафу · E — выйти</span></div>
   <div id="obj"></div>
   <div id="fuses"><span id="fuseLbl"></span><div class="dots"></div><div id="flareCnt" style="margin-top:10px"></div></div>
   <div class="bars">
@@ -336,6 +346,8 @@
       <b>Q / 2</b>телефон, <b style="min-width:0">ЛКМ</b> снимок или запись<br>
       <b>R</b>фото, видео или прямой эфир<br>
       <b>T</b>фронтальная камера — снять себя<br>
+      <b>X</b>умение класса<br>
+      <b>Z</b>метка для друзей, <b style="min-width:0">B</b> напугать<br>
       <b>Tab</b>монтаж выпуска<br>
       <b>F, ПКМ</b>фонарь<br>
       <b>E</b>взять, поднять друга<br>
@@ -383,6 +395,7 @@
         <button class="item small" id="bShop">Снаряжение</button>
         <button class="item small" id="bMail">Сообщения</button>
         <button class="item small" id="bAch">Достижения</button>
+        <button class="item small" id="bClasses">Классы</button>
         <button class="item small" id="bJournal2">Записки</button>
         <button class="item small" id="bHubBack">В меню</button>
       </nav>
@@ -391,6 +404,14 @@
   </div>
 </div>
 
+<div id="classes" class="screen solid">
+  <div class="page" style="max-width:680px">
+    <h2>Классы</h2>
+    <div class="lbl" id="clsGems"></div>
+    <div id="clsList" style="margin:14px 0 24px"></div>
+    <nav><button class="item small" id="bClsBack">Назад</button></nav>
+  </div>
+</div>
 <div id="shop" class="screen solid">
   <div class="page" style="max-width:640px">
     <h2>Снаряжение</h2>

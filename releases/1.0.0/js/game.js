@@ -9,8 +9,9 @@ import { generateMaze, buildWorld, TILE, WALL_H, tileCenter, toTile, bfs, lineOf
 import { Sound } from './audio.js';
 import { makeMonster, poseMonster, makeCrawler, poseCrawler, BEASTS } from './monster.js';
 import { CHAPTERS, PERKS, TOTAL_NOTES, finalEnding } from './chapters.js';
-import { MAPS, mapsOpen } from './maps.js';
-import { pickNight, makeTasks, chatLine, donation, ACH } from './events.js';
+import { MAPS, mapsOpen, GOALS } from './maps.js';
+import { makeFurniture } from './kits.js';
+import { pickNight, makeTasks, chatLine, donation, ACH, CLASSES } from './events.js';
 import { makeAvatar as makeAvatar2, poseAvatar, LOOK_OPTIONS, randomLook, cleanLook } from './avatar.js';
 import { DEPTH_SUBS, GOAL_SUBS, GEAR, LOOT, MESSAGES, comments, fmt } from './channel.js';
 import { buildVanScene } from './vanscene.js';
@@ -52,7 +53,8 @@ const saveP = () => {
 };
 if (!SAVE.look) SAVE.look = randomLook(); SAVE.look = cleanLook(SAVE.look);
 const hasGear = (k) => SAVE.gear.includes(k);
-const hasPerk = (k) => SAVE.perks.includes(k) || hasGear(k) || (k === 'soft' && hasGear('boots')) || (k === 'battery' && hasGear('torch'));
+const CLS = () => SAVE.cls || 'op';
+const hasPerk = (k) => SAVE.perks.includes(k) || hasGear(k) || (k === 'soft' && hasGear('boots')) || (k === 'battery' && (hasGear('torch') || CLS() === 'priest')) || (k === 'medic' && CLS() === 'medic') || (k === 'hands' && CLS() === 'tech') || (k === 'eyes' && CLS() === 'scout');
 if (SAVE.earned == null) SAVE.earned = SAVE.money + (SAVE.gear || []).reduce((a, k) => a + (GEAR[k] ? GEAR[k].price : 0), 0);
 // старые сохранения: глубины открывались по подписчикам, карты — по заработку. Всё, что было открыто, остаётся открытым
 if (!SAVE.migr7) {
@@ -325,6 +327,14 @@ function makeStation(kind) {
     const flame = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.2, 10), new THREE.MeshBasicMaterial({ color: 0xffb060 })); flame.position.y = 1.7; flame.visible = false; g.add(flame);
     g.userData.flame = flame;
     light = new THREE.PointLight(0xffa860, 0, 9, 1.5); light.position.y = 1.8; g.add(light);
+  } else if (kind === 'switch') {
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.18), new THREE.MeshStandardMaterial({ color: 0x3a4a3c, roughness: 0.6, metalness: 0.6 })); box.position.set(0, 1.25, 0.09); g.add(box);
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.12), new THREE.MeshStandardMaterial({ color: 0xb8a030, roughness: 0.6 })); plate.position.set(0, 1.5, 0.181); g.add(plate);
+    const lever = new THREE.Group(); lever.position.set(0, 1.2, 0.2); g.add(lever);
+    const rod = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.32, 0.05), iron); rod.position.y = 0.14; lever.add(rod);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), new THREE.MeshStandardMaterial({ color: 0x8a1a10, roughness: 0.5 })); knob.position.y = 0.3; lever.add(knob);
+    lever.rotation.x = 0.9; g.userData.lever = lever; g.userData.wall = true;
+    const cab = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.0, 6), rust); cab.position.set(0.18, 2.1, 0.05); g.add(cab);
   } else if (kind === 'winch') {
     for (const s of [-1, 1]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.2, 0.15), iron); post.position.set(s * 0.6, 0.6, 0); g.add(post); }
     const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 1.1, 16), rust); drum.rotation.z = Math.PI / 2; drum.position.y = 1.0; g.add(drum);
@@ -409,7 +419,8 @@ function newScene() {
 
 function buildGame(seed, opts = {}) {
   newScene(); MENU = null;
-  const ch = opts.ch || 0; const CH = opts.run && !opts.attract ? { ...MAPS[Math.min(ch, MAPS.length - 1)], collect: { kind: 'loot', n: 7, label: 'находки', one: 'Находка' }, stations: null, timer: 0, exitLabel: 'фургон', outro: '' } : CHAPTERS[ch];
+  const ch = opts.ch || 0; const MP = MAPS[Math.min(ch, MAPS.length - 1)], GL = GOALS[MP.id];
+  const CH = opts.run && !opts.attract ? { ...MP, goal: GL, collect: { kind: 'loot', n: 7, label: 'находки', one: 'Находка' }, stations: GL && GL.kind !== 'key' ? { kind: GL.kind, n: GL.n, label: GL.label, hold: GL.hold } : null, timer: 0, exitLabel: 'фургон', outro: '' } : CHAPTERS[ch];
   const nFlares = opts.attract ? 0 : CH.flares;
   const maze = generateMaze(seed, CH.cells, { collect: CH.collect ? CH.collect.n : 0, stations: CH.stations ? CH.stations.n : 0, notes: CH.notes.length, batteries: CH.batteries, flares: nFlares, propK: Q.props }, CH.layout || 'maze', CH.lopts || {});
   maze.seedProps = seed ^ 0x5bd1e995;
@@ -504,6 +515,10 @@ function buildGame(seed, opts = {}) {
       frozenT: 0, flT: 0, pathT: 0, field: null, dest: null, lostT: 0, firstSpawn: true, moving: false }
   };
   if (G.run) {
+    G.goalDone = !CH.goal; G.ab = { cd: 0 }; G.pings = []; G.evT = 70 + (seed % 40); G.evN = 0;
+    if (CH.goal && CH.goal.duo && stations.length) stations[stations.length - 1].duo = true;
+    if (CH.goal && CH.goal.kind === 'key') { const [kx, ky] = maze.exit; const km = makeKey(); const c = tileCenter(kx, ky); km.position.set(c.x, waterY, c.z); scene.add(km); items.push({ id: 950, kind: 'key', mesh: km, taken: false, pos: c }); }
+    G.hides = makeHides(scene, maze, world, items, seed);
     G.selfAv = makeAvatar2(S.nick, SAVE.look); G.selfAv.group.visible = false; scene.add(G.selfAv.group);
     G.selfLight = new THREE.PointLight(0xd8e6ff, 0, 2.2, 1.6); scene.add(G.selfLight); // свет экрана на лицо
     G.beast = BEH[CH.id] || {}; G.open = false; G.need = Math.min(6, 3 + Math.floor(ch / 3)); resetEpisode(seed);
@@ -571,6 +586,11 @@ function handle(m, local = false) {
       if (mode === 'lobby' || mode === 'end' || local) startGame(m); break;
     case 'st': if (G && mode === 'game') onState(m); break;
     case 'md': onMediaMeta(m); break;
+    case 'ev': if (G && G.run) applyEvent(m); break;
+    case 'ping': if (G && G.run) addPing(m); break;
+    case 'prank': if (G && G.run && m.from !== me.id) { const p = new THREE.Vector3(m.p[0], 1.6, m.p[1]); if (p.distanceTo(G.pos) < 30) { sound.distantScream(p); G.shake = Math.max(G.shake, 0.4); } if (isHost && G.m.mode < 2) { G.m.mode = 1; G.m.dest = new THREE.Vector3(m.p[0], 0, m.p[1]); G.m.field = null; } } break;
+    case 'ab': if (G && G.run) applyAbility(m); break;
+    case 'ev2': break;
     case 'tk': if (G && G.tasks) { const t = G.tasks.find((x) => x.id === m.id); if (t && !t.done) completeTask(t, m.from); } break;
     case 'mf': onMediaFrames(m); break;
     case 'pick': if (isHost && G) hostPick(m.item, m.from); break;
@@ -598,7 +618,7 @@ function onState(m) {
   if (!p) return;
   p.last = performance.now();
   p.moving = Math.hypot(m.p[0] - p.tpos.x, m.p[1] - p.tpos.z) > 0.04;
-  p.tpos.set(m.p[0], 0, m.p[1]); p.tyaw = m.y; p.pitch = m.pi; p.flash = !!m.f; p.running = !!m.r; p.bat = m.b; p.crouch = !!m.c; p.noisy = !!m.n; p.soft = !!m.sf; if (p.rc !== (m.rc | 0)) { p.rc = m.rc | 0; renderTeam(); } p.ph = !!m.ph;
+  p.tpos.set(m.p[0], 0, m.p[1]); p.tyaw = m.y; p.pitch = m.pi; p.flash = !!m.f; p.running = !!m.r; p.bat = m.b; p.crouch = !!m.c; p.noisy = !!m.n; p.soft = !!m.sf; if (p.rc !== (m.rc | 0)) { p.rc = m.rc | 0; renderTeam(); } p.ph = !!m.ph; p.hd = !!m.hd;
   if (m.m && !isHost) {
     const M = G.m; const wasGone = M.g;
     M.target.set(m.m.x, 0, m.m.z); M.ry = m.m.r; M.fz = !!m.m.fz; M.g = !!m.m.g; M.fl = !!m.m.fl; M.moving = !!m.m.mv; M.mode = m.m.md | 0;
@@ -753,7 +773,7 @@ function runIntro() {
   if (first) lines.push(...C.intro);
   { const b = BEASTS[C.id]; if (b) lines.push(`Здесь водится ${b.name}. ${b.text}`); }
   if (G.night && G.night.id !== 'calm') lines.push(`${G.night.name}. ${G.night.text}`);
-  lines.push(`Фургон не уедет без материала: нужно найти минимум ${G.need} находки. У зрителей три задания, проклятая находка светится фиолетовым. Успейте до рассвета.`);
+  lines.push(`Задача: ${(G.CH.goal || { text: '' }).text.toLowerCase()}. И минимум ${G.need} находки. Без этого фургон не уедет. Успейте до рассвета.`);
   return { title: C.title, place: C.place, intro: lines };
 }
 function playIntro(CH) {
@@ -823,6 +843,54 @@ function startAttractOld() {
   renderPass.scene = scene;
 }
 
+// ключ: латунный, с биркой, слегка светится
+function makeKey() {
+  const g = new THREE.Group(); const brass = new THREE.MeshStandardMaterial({ color: 0xb08a3a, metalness: 0.9, roughness: 0.3, emissive: 0x3a2a08, emissiveIntensity: 0.8 });
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.008, 8, 18), brass); ring.rotation.x = Math.PI / 2; ring.position.set(-0.06, 0.012, 0); g.add(ring);
+  const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.01, 0.012), brass); shaft.position.set(0.02, 0.012, 0); g.add(shaft);
+  for (const x of [0.05, 0.065]) { const t = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.01, 0.025), brass); t.position.set(x, 0.012, 0.012); g.add(t); }
+  const tag = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.004, 0.03), new THREE.MeshStandardMaterial({ color: 0xd8c8a0, roughness: 1 })); tag.position.set(-0.11, 0.004, 0.01); tag.rotation.y = 0.4; g.add(tag);
+  const l = new THREE.PointLight(0xffd080, 1.5, 3, 1.8); l.position.y = 0.3; g.add(l);
+  return g;
+}
+// шкафы, в которых можно спрятаться
+function makeHides(scene, maze, world, items, seed) {
+  const R = (() => { let z = (seed ^ 0x2f1) >>> 0 || 3; return () => { z = (z * 1103515245 + 12345) >>> 0; return z / 4294967296; }; })();
+  const out = []; const G0 = maze.G; const used = items.map((i) => toTile(i.pos));
+  const cand = [];
+  for (let y = 1; y < G0 - 1; y++) for (let x = 1; x < G0 - 1; x++) {
+    if (maze.isWall(x, y) || maze.dist[y * G0 + x] < 7 || maze.dist[y * G0 + x] > 1e8) continue;
+    const sides = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => maze.isWall(x + dx, y + dy) && (!maze.kind || maze.kind[(y + dy) * G0 + x + dx] === 1));
+    if (sides.length && !used.some((u) => Math.abs(u[0] - x) + Math.abs(u[1] - y) < 2)) cand.push([x, y, sides[0]]);
+  }
+  cand.sort(() => R() - 0.5);
+  for (const [x, y, [sx, sy]] of cand) {
+    if (out.length >= 5) break;
+    if (out.some((h) => Math.abs(h.tx - x) + Math.abs(h.ty - y) < 7)) continue;
+    const f = makeFurniture('locker', R); if (!f) continue;
+    const c = tileCenter(x, y); const off = TILE / 2 - f.depth / 2 - 0.06;
+    f.group.position.set(c.x + sx * off, 0, c.z + sy * off); f.group.rotation.y = Math.atan2(-sx, -sy); scene.add(f.group);
+    world.colliders.push({ x: f.group.position.x, z: f.group.position.z, r: Math.min(0.5, f.r) });
+    const front = new THREE.Vector3(c.x + sx * (off - f.depth / 2 - 0.12), 0, c.z + sy * (off - f.depth / 2 - 0.12));
+    out.push({ i: out.length, tx: x, ty: y, pos: front, inPos: new THREE.Vector3(c.x + sx * (off - f.depth / 2 - 0.04), 0, c.z + sy * (off - f.depth / 2 - 0.04)), yaw: Math.atan2(sx, sy) });
+  }
+  return out;
+}
+// главная задача выполнена
+function goalDone() {
+  if (!G || G.goalDone) return; G.goalDone = true; const g = G.CH.goal || {};
+  sound.lift(); log(`Готово: ${g.label}.`, 5000);
+  if (g.power) { // метро: включается свет станции
+    let n = 0; for (const L of G.world.lamps) { if (L.mat) { L.mat.emissiveIntensity = 2.2; } if (n < 8) { const pl = new THREE.PointLight(0xdfe8ff, 5, 9, 1.6); pl.position.copy(L.pos); scene.add(pl); n++; } }
+    log('На станции загорелся свет', 4000);
+  }
+  if (g.alarm) { G.alarm = true; sound.screech(1.6); G.shake = 1.4; log('ТРЕВОГА. Она знает, где вы. Бегите к фургону', 7000); }
+  checkVan(); setObjective();
+}
+function checkVan() {
+  if (!G || !G.run || G.open) return;
+  if (G.collected >= G.need && G.goalDone) { G.open = true; sound.lift(); log('Всё готово для выпуска. Фургон ждёт — можно возвращаться', 6000); }
+}
 // ---------------- Логика хоста ----------------
 function hostPick(itemId, by) {
   const it = G.items.find((i) => i.id === itemId); if (!it || it.taken) return;
@@ -836,7 +904,7 @@ function applyTook(m) {
   if (it.kind === 'loot') {
     const v = Math.round(it.loot.value * (G.run ? G.CH.mult || 1 : 1 + G.ch * 0.4)); G.loot += v; G.collected++;
     if (m.by === me.id) { log(`${it.loot.name} · ${v} ₽`); sound.pickup(); } else log(`${who}: ${it.loot.name.toLowerCase()} · ${v} ₽`);
-    if (G.run) { taskSet('loot', G.collected); taskSet('allloot', G.collected); if (!G.open && G.collected >= G.need) { G.open = true; sound.lift(); log('Материала хватит на выпуск. Фургон ждёт — можно возвращаться', 6000); } }
+    if (G.run) { taskSet('loot', G.collected); taskSet('allloot', G.collected); checkVan(); }
     if (it.cursed) {
       G.cursedTaken = true; if (it.glow) it.glow.intensity = 0; sound.stinger(); G.shake = 1; log(m.by === me.id ? 'Она почувствовала. Она идёт за тобой' : `${who} взял проклятую вещь. Она идёт`, 6000);
       if (isHost) { const M = G.m; const tp = m.by === me.id ? G.pos : (G.players.get(m.by) || { pos: G.pos }).pos; M.gone = Math.min(M.gone, 1.5); if (!M.g) { M.mode = 1; M.dest = tp.clone(); M.field = null; } }
@@ -847,6 +915,8 @@ function applyTook(m) {
     if (m.by === me.id) { log(`${C.one}, ${G.collected} из ${C.n}`); sound.pickup(); } else log(`${who}: ${C.one.toLowerCase()}, ${G.collected} из ${C.n}`);
     renderFuses();
     if (G.collected >= C.n) { if (G.CH.stations) log(collectDoneText()); else if (!G.open) openDoor(); }
+  } else if (it.kind === 'key') {
+    if (m.by === me.id) sound.pickup(); log(m.by === me.id ? `Ты нашёл: ${G.CH.goal.label}` : `${who} нашёл: ${G.CH.goal.label}`); goalDone();
   } else if (it.kind === 'flare') {
     if (m.by === me.id) { G.flares++; sound.battery(); log(`Сигнальная шашка (${G.flares}) — бросить на G`); hint('flare', 'G — бросить шашку. Красный свет держит её на месте и манит ползунов.'); }
   } else if (it.kind === 'note') {
@@ -859,22 +929,25 @@ function applyTook(m) {
 }
 function openDoor() { G.open = true; sound.lift(); log(G.CH.exitLabel === 'клеть' ? 'Где-то загудел подъёмник' : `Путь открыт: ${G.CH.exitLabel}`); setObjective(); }
 function collectDoneText() { const k = G.CH.stations.kind; return k === 'generator' ? 'Канистры собраны. Неси к генератору' : k === 'charge' ? 'Заряды у тебя. Ищи красные метки закладок' : 'Всё собрано'; }
-const ST_VERB = { pump: 'запустить насос', generator: 'залить топливо и завести', charge: 'заложить заряд', lamp: 'зажечь лампаду', winch: 'крутить ворот' };
-function stationReady() { return !G.CH.collect || G.collected >= G.CH.collect.n; }
+const ST_VERB = { switch: 'включить рубильник', pump: 'запустить насос', generator: 'залить топливо и завести', charge: 'заложить заряд', lamp: 'зажечь лампаду', winch: 'крутить ворот' };
+function stationReady() { return G.run || !G.CH.collect || G.collected >= G.CH.collect.n; }
+function duoCount(st) { return alivePlayers().filter((p) => Math.hypot(p.pos.x - st.pos.x, p.pos.z - st.pos.z) < 2.8).length; }
 function hostAct(si, by) {
   const st = G.stations[si]; if (!st || st.done || !stationReady()) return;
+  if (st.duo && !G.solo && duoCount(st) < 2) return;
   bc({ t: 'done', s: si, by, host: 1 });
 }
 function applyDone(si, by) {
   const st = G.stations[si]; if (!st || st.done) return;
   st.done = true; G.stDone = G.stations.filter((x) => x.done).length;
-  st.ind.emissive.setHex(0x39ff6a); st.ind.emissiveIntensity = 2.5;
+  st.ind.emissive.setHex(0x39ff6a); st.ind.emissiveIntensity = 2.5; if (st.group.userData.lever) st.group.userData.lever.rotation.x = -0.9;
   const k = G.CH.stations.kind, n = G.CH.stations.n;
   if (k === 'lamp') { st.light.intensity = 7; st.group.userData.flame.visible = true; }
   if (k === 'pump' || k === 'generator') sound.lift();
   if (k === 'charge') sound.pickup();
   log(`${G.CH.stations.label[0].toUpperCase() + G.CH.stations.label.slice(1)}: ${G.stDone} из ${n}`);
   renderFuses();
+  if (G.stDone >= n && G.run) { goalDone(); return; }
   if (G.stDone >= n) {
     if (G.CH.timer) { if (isHost) bc({ t: 'timer', sec: G.CH.timer, host: 1 }); openDoor(); }
     else if (k === 'lamp') { G.weak = true; sound.distantScream({ x: G.m.pos.x, y: 1.7, z: G.m.pos.z }); openDoor(); }
@@ -904,8 +977,8 @@ function checkLose() {
 
 function alivePlayers() {
   const out = [];
-  if (!G.down && G.intro <= 0) out.push({ id: me.id, pos: G.pos, yaw, pitch, flash: G.flashOn && G.bat > 0 && !G.flickerOff && G.forceOff <= 0, running: G.running, moving: G.vel.lengthSq() > 0.5, crouch: !!G.crouch, eye: G.eye || 1.62, noisy: G.noisy, soft: hasPerk('soft') });
-  for (const p of G.players.values()) if (!p.down) out.push({ id: p.id, pos: p.tpos, yaw: p.tyaw, pitch: p.pitch, flash: p.flash, running: p.running, moving: p.moving, crouch: p.crouch, eye: p.crouch ? 1.0 : 1.6, noisy: p.noisy, soft: p.soft });
+  if (!G.down && G.intro <= 0) out.push({ id: me.id, hidden: !!G.hidden, pos: G.pos, yaw, pitch, flash: G.flashOn && G.bat > 0 && !G.flickerOff && G.forceOff <= 0, running: G.running, moving: G.vel.lengthSq() > 0.5, crouch: !!G.crouch, eye: G.eye || 1.62, noisy: G.noisy, soft: hasPerk('soft') });
+  for (const p of G.players.values()) if (!p.down) out.push({ id: p.id, hidden: !!p.hd, pos: p.tpos, yaw: p.tyaw, pitch: p.pitch, flash: p.flash, running: p.running, moving: p.moving, crouch: p.crouch, eye: p.crouch ? 1.0 : 1.6, noisy: p.noisy, soft: p.soft });
   return out;
 }
 
@@ -966,15 +1039,18 @@ function hostMonster(dt) {
   let seen = null, sd = 1e9;
   for (const p of alive) {
     const d = p.pos.distanceTo(M.pos);
+    if (p.hidden && !(M.mode === 2 && M.chaseId === p.id && d < 6)) continue; // в шкафу не видно и не слышно, если она не видела, как ты туда залез
     const B = G.beast || {}; const sees = d < (B.sight ? Math.min(B.sight, p.crouch ? 2.2 : B.sight) : p.flash ? (B.sightLit || 22) : p.crouch ? 2.2 : (B.sightDark || 4.5)) && lineOfSight(maze, M.pos, p.pos);
     if (sees && d < sd) { sd = d; seen = p; }
     const wet = !!G.world.water && p.moving;
     const hears = d < (G.night.hear || 1) * ((G.beast || {}).hear || 1) * (p.noisy ? 20 : p.running ? (p.soft ? 9 : 15) : wet ? (p.crouch ? 3 : 9) : p.moving && !p.crouch ? 4 : 0);
     if (hears && M.mode < 2) { M.mode = 1; M.dest = p.pos.clone(); M.field = null; }
   }
-  if (seen) { if (M.mode !== 2) M.field = null; M.mode = 2; M.dest = seen.pos.clone(); M.lostT = 0; }
+  if (seen) { if (M.mode !== 2) M.field = null; M.mode = 2; M.dest = seen.pos.clone(); M.lostT = 0; M.chaseId = seen.id; }
   else if (M.mode === 2) { M.lostT += dt; if (M.lostT > 4) { M.mode = 1; } }
   // агрессия: в поздних главах она сама идёт к ближайшему
+  if ((G.alarm || G.huntT > 0) && M.mode < 2) { M.alT = (M.alT || 0) - dt; if (M.alT <= 0) { M.alT = 1.5; let n = alive[0], nd = 1e9; for (const p of alive) { if (p.hidden) continue; const dd = p.pos.distanceTo(M.pos); if (dd < nd) { nd = dd; n = p; } } if (n && !n.hidden) { M.mode = 1; M.dest = n.pos.clone(); M.field = null; } } }
+  if (G.lure && G.lure.t > 0) { G.lure.t -= dt; if (M.mode < 2) { M.mode = 1; M.dest = G.lure.pos.clone(); if (!M._lf) { M.field = null; M._lf = 1; } } } else if (M._lf) M._lf = 0;
   if (MC.aggro && M.mode < 2) { M.aggroT -= dt; if (M.aggroT <= 0) { M.aggroT = (G.beast || {}).aggroT || 6; let n = alive[0], nd = 1e9; for (const p of alive) { const dd = p.pos.distanceTo(M.pos); if (dd < nd) { nd = dd; n = p; } } M.mode = 1; M.dest = n.pos.clone(); M.field = null; } }
   // рывок: долго никто не видит и далеко — появляется ближе
   if (MC.blink && !seen) { M.unseenT += dt; if (M.unseenT > 14 && Math.min(...alive.map((p) => p.pos.distanceTo(M.pos))) > 18) { const sp = findSpawn(alive, 6, 10); if (sp) { M.pos.copy(sp); M.field = null; M.mode = 1; M.dest = alive[0].pos.clone(); } M.unseenT = 0; } } else M.unseenT = 0;
@@ -995,6 +1071,7 @@ function hostMonster(dt) {
   if (d > 0.01) { const s = Math.min(d, speed * dt); M.pos.x += dx / d * s; M.pos.z += dz / d * s; M.ry = Math.atan2(-dx, -dz); }
   M.moving = true;
   for (const p of alive) {
+    if (p.hidden && M.chaseId !== p.id) continue;
     if (Math.hypot(p.pos.x - M.pos.x, p.pos.z - M.pos.z) < 0.85) {
       bc({ t: 'down', id: p.id, host: 1 });
       M.g = true; M.gone = 8 + Math.random() * 5; M.fz = false; M.moving = false; M.mode = 0;
@@ -1121,6 +1198,11 @@ addEventListener('keydown', (e) => {
     if (e.code === 'Tab') { e.preventDefault(); openGallery(true); }
   }
   if (e.code === 'Digit3' && G.flares > 0) throwFlare();
+  if (G.run && !G.down) {
+    if (e.code === 'KeyX') useAbility();
+    if (e.code === 'KeyZ') doPing();
+    if (e.code === 'KeyB' && !G.solo) doPrank();
+  }
   if (e.code === 'KeyE') { if (noteOpen) { closeNote(); return; } tryInteract(); }
 });
 addEventListener('keyup', (e) => { keys[e.code] = false; if (e.code === 'Tab') openGallery(false); });
@@ -1290,6 +1372,96 @@ function uploadMedia() {
   let k = 0; const tick = () => { if (k >= q.length || !net) return; send(q[k++]); setTimeout(tick, 220); }; setTimeout(tick, 600);
 }
 function episodeList() { return [...EP.media.values()].filter((x) => x.n).sort((a, b) => a.t0 - b.t0); }
+// ---------------- События посреди вылазки ----------------
+const EVENTS = ['blackout', 'hunt', 'golden', 'ambush', 'blackout', 'golden'];
+function hostEvents(dt) {
+  if (!isHost || G.over) return;
+  G.evT -= dt; if (G.evT > 0) return;
+  G.evT = 80 + Math.random() * 70; G.evN++;
+  const k = EVENTS[Math.floor(Math.random() * EVENTS.length)];
+  const m = { t: 'ev', k, n: G.evN, host: 1 };
+  if (k === 'golden') { const t = randomOpenTile(G.pos, 6, 18); if (!t) return; const [tx, ty] = toTile(t); m.x = tx; m.y = ty; }
+  bc(m);
+}
+function applyEvent(m) {
+  if (m.k === 'blackout') { G.forceOff = 7; G.glitch = 0.6; sound.buzz({ x: G.pos.x, y: 2.5, z: G.pos.z }, 1.2); log('Свет погас у всех. Не двигайся…', 5000); }
+  else if (m.k === 'hunt') { G.huntT = 22; sound.distantScream({ x: G.m.pos.x, y: 1.7, z: G.m.pos.z }); G.shake = 0.8; log('Она в ярости и ищет вас. Прячьтесь в шкафы', 6000); }
+  else if (m.k === 'golden') {
+    const c = tileCenter(m.x, m.y); const L = { name: 'Золотая находка', value: 1500, shape: 'medal' };
+    const mesh = makeLoot(L.shape); mesh.traverse((o) => { if (o.isMesh && o.material && o.material.emissive) { o.material = o.material.clone(); o.material.emissive.setHex(0x8a6a10); o.material.emissiveIntensity = 2; } });
+    const gl = new THREE.PointLight(0xffc040, 4, 6, 1.6); gl.position.y = 0.5; mesh.add(gl); mesh.position.set(c.x, 0, c.z); scene.add(mesh);
+    const it = { id: 900 + m.n, kind: 'loot', mesh, taken: false, pos: c, loot: L, gold: G.time + 75 }; G.items.push(it);
+    sound.whisper({ x: c.x, y: 1.5, z: c.z }); log('В рации шёпот: «там что-то блестит»… Золотая находка — 75 секунд', 6000); addPing({ p: [c.x, c.z], by: '', gold: 1 });
+  } else if (m.k === 'banished') { log('Она исчезла. Ненадолго', 3000); sound.distantScream({ x: G.m.pos.x, y: 1.7, z: G.m.pos.z }); }
+  else if (m.k === 'ambush') { log('Тихо. Слишком тихо…', 4000); if (isHost) { const alive = alivePlayers().filter((p) => !p.hidden); const v = alive[Math.floor(Math.random() * alive.length)]; if (v) { const sp = findSpawn([v], 5, 9); if (sp) { const M = G.m; M.pos.copy(sp); M.target.copy(sp); M.g = false; M.mode = 1; M.dest = v.pos.clone(); M.field = null; } } } }
+}
+// ---------------- Умения классов ----------------
+function useAbility() {
+  const c = CLASSES.find((x) => x.id === CLS()); if (!c || !c.cd) return;
+  if (G.ab.cd > 0) { log(`${c.ab.split(':')[0]} будет готов через ${Math.ceil(G.ab.cd)} с`, 1500); return; }
+  G.ab.cd = c.cd; sound.select();
+  if (c.id === 'medic') { G.adrenT = 8; log('Адреналин! 8 секунд без усталости', 3000); }
+  else if (c.id === 'scout') { G.radarT = 6; }
+  else if (c.id === 'streamer') { G.raidT = 20; log('Рейд! Зрителей вдвое больше', 3000); }
+  else if (c.id === 'tech') { const f = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)); let p = G.pos.clone(); for (let i = 0; i < 20; i++) { const q = p.clone().addScaledVector(f, 0.35); if (G.maze.isWall(Math.floor(q.x / TILE), Math.floor(q.z / TILE))) break; p = q; } const m = { t: 'ab', k: 'lure', p: [p.x, p.z], by: me.id }; send(m); applyAbility(m); }
+  else if (c.id === 'priest') { const m = { t: 'ab', k: 'holy', p: [G.pos.x, G.pos.z], by: me.id }; send(m); applyAbility(m); }
+}
+function applyAbility(m) {
+  if (m.k === 'lure') {
+    const pos = new THREE.Vector3(m.p[0], 0, m.p[1]);
+    const b = new THREE.Group(); const box = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.08), new THREE.MeshStandardMaterial({ color: 0x2a2a2a })); box.position.y = 0.04; b.add(box);
+    const led = new THREE.PointLight(0xff3020, 2, 3, 1.8); led.position.y = 0.15; b.add(led); b.position.copy(pos); scene.add(b);
+    const until = G.time + 12; G.lureObj = { b, led, until, beep: 0 };
+    if (isHost) G.lure = { pos, t: 12 };
+    log(m.by === me.id ? 'Пищалка брошена. Она пойдёт на звук' : 'Кто-то бросил пищалку', 3000);
+  } else if (m.k === 'holy') {
+    const pos = new THREE.Vector3(m.p[0], 0, m.p[1]);
+    flashScreen(0.35);
+    if (isHost) { const M = G.m; if (!M.g && M.pos.distanceTo(pos) < 7) { M.g = true; M.gone = 25; M.fz = false; M.mode = 0; bc({ t: 'ev', k: 'banished', host: 1 }); } }
+    if (m.by === me.id) log('Святая вода…', 2000);
+  }
+}
+// ---------------- Метки для команды ----------------
+function doPing() {
+  if ((G.pingCd || 0) > G.time) return; G.pingCd = G.time + 1.5;
+  const f = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)); let p = G.pos.clone();
+  for (let i = 0; i < 50; i++) { const q = p.clone().addScaledVector(f, 0.35); if (G.maze.isWall(Math.floor(q.x / TILE), Math.floor(q.z / TILE))) break; p = q; }
+  const m = { t: 'ping', p: [p.x, p.z], by: S.nick }; send(m); addPing(m);
+}
+function addPing(m) {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.strokeStyle = m.gold ? '#ffc040' : '#ffd65a'; g.lineWidth = 5; g.beginPath(); g.arc(32, 32, 22, 0, 7); g.stroke(); g.fillStyle = g.strokeStyle; g.beginPath(); g.arc(32, 32, 6, 0, 7); g.fill();
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true })); sp.scale.setScalar(0.6); sp.position.set(m.p[0], 1.2, m.p[1]); sp.renderOrder = 999; scene.add(sp);
+  G.pings.push({ sp, until: G.time + (m.gold ? 75 : 8) }); sound.tick();
+  if (m.by && m.by !== S.nick) log(`${m.by}: сюда!`, 2000);
+}
+function doPrank() {
+  if ((G.prankCd || 0) > G.time) { log('Разыграть можно через ' + Math.ceil(G.prankCd - G.time) + ' с', 1200); return; }
+  G.prankCd = G.time + 25; send({ t: 'prank', p: [G.pos.x, G.pos.z] }); if (isHost && G.m.mode < 2) { G.m.mode = 1; G.m.dest = G.pos.clone(); G.m.field = null; }
+  log('Ты закричал. Друзья испугались… и она тоже услышала', 2500);
+}
+function updateExtras(dt) {
+  hostEvents(dt);
+  G.huntT = Math.max(0, (G.huntT || 0) - dt); G.adrenT = Math.max(0, (G.adrenT || 0) - dt); G.raidT = Math.max(0, (G.raidT || 0) - dt); G.radarT = Math.max(0, (G.radarT || 0) - dt);
+  if (G.ab) G.ab.cd = Math.max(0, G.ab.cd - dt);
+  for (const it of G.items) if (it.gold && !it.taken && G.time > it.gold) { it.taken = true; it.mesh.visible = false; log('Золотая находка пропала', 2000); }
+  G.pings = G.pings.filter((p) => { if (G.time > p.until) { scene.remove(p.sp); return false; } p.sp.material.opacity = 0.6 + Math.sin(G.time * 8) * 0.4; return true; });
+  if (G.lureObj) { const L = G.lureObj; if (G.time > L.until) { scene.remove(L.b); G.lureObj = null; } else { L.beep -= dt; if (L.beep <= 0) { L.beep = 0.6; sound.tick(); L.led.intensity = 3; } else L.led.intensity *= 0.9; } }
+  if (G.hidden) { G.pos.copy(G.hidden.pos); G.flashOn = false; }
+  // строка умения
+  const c = CLASSES.find((x) => x.id === CLS());
+  const abTxt = c && c.cd ? `${c.name} · X — ${c.ab.split(':')[0]}${G.ab.cd > 0 ? ` через ${Math.ceil(G.ab.cd)} с` : ' готов'}` : c ? c.name : '';
+  const extra = (G.solo ? '' : ' · Z метка · B напугать друзей') + (G.hides && G.hides.length ? ' · E у шкафа — спрятаться' : '');
+  const line = abTxt + extra; if ($('abil').textContent !== line) $('abil').textContent = line;
+  // радар разведчика
+  let rad = '';
+  if (G.radarT > 0) {
+    const arrow = (p) => { const a = Math.atan2(-(p.x - G.pos.x), -(p.z - G.pos.z)) - yaw; const k = ((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8; return ['↑', '↖', '←', '↙', '↓', '↘', '→', '↗'][k]; };
+    const list = G.items.filter((i) => !i.taken && (i.kind === 'loot' || i.kind === 'key')).map((i) => ({ i, d: i.pos.distanceTo(G.pos) })).sort((a, b) => a.d - b.d).slice(0, 3);
+    rad = list.map((x) => `${x.i.kind === 'key' ? 'ключ' : 'находка'} ${arrow(x.i.pos)} ${Math.round(x.d)} м`).join('\n');
+    if (!G.m.g) rad += `\nона ${arrow(G.m.pos)} ${Math.round(G.m.pos.distanceTo(G.pos))} м`;
+  }
+  if ($('radar').textContent !== rad) $('radar').textContent = rad;
+}
 // ---------------- Повадки монстров разных карт ----------------
 const BEH = {
   metro: { chase: 0.7 },                        // быстрее всех в погоне
@@ -1329,10 +1501,10 @@ function taskShot(cat, it, video) {
 function streamFrame(res) {
   const st = G.stream; if (!st) return;
   const base = 12 + Math.sqrt(SAVE.subs || 0) * 4;
-  const target = base + res.score * 1.4 * (G.night.views || 1);
+  const target = (base + res.score * 1.4 * (G.night.views || 1)) * (CLS() === 'streamer' ? 1.5 : 1) * (G.raidT > 0 ? 2 : 1);
   st.viewers = Math.round(st.viewers + (target - st.viewers) * (target > st.viewers ? 0.35 : 0.08));
   st.peak = Math.max(st.peak, st.viewers);
-  const k = (G.night.donate || 1) * (hasGear('lens') ? 1.2 : 1);
+  const k = (G.night.donate || 1) * (hasGear('lens') ? 1.2 : 1) * (CLS() === 'streamer' ? 2 : 1);
   if (Math.random() < Math.min(0.08, res.score / 40000) * k) {
     const d = donation(res.score, k); st.donated += d.sum; G.donate = (G.donate || 0) + d.sum;
     pushChat({ who: d.who, text: `донат ${d.sum} ₽ — ${d.text}`, don: true }); sound.pickup();
@@ -1435,8 +1607,16 @@ function nearestDowned() {
   for (const p of G.players.values()) { if (!p.down) continue; const d = p.pos.distanceTo(G.pos); if (d < bd) { bd = d; best = p; } }
   return best;
 }
+function nearestHide() { if (!G.hides) return null; let b = null, bd = 1.5; for (const h of G.hides) { const d = Math.hypot(h.pos.x - G.pos.x, h.pos.z - G.pos.z); if (d < bd) { bd = d; b = h; } } return b; }
+function setHidden(h) {
+  if (h) { G.hidden = h; G.hideFrom = G.pos.clone(); G.pos.copy(h.pos); yaw = h.yaw; pitch = 0; G.flashOn = false; if (G.camMode) setPhone(false); sound.creak({ x: h.pos.x, y: 1, z: h.pos.z }); hint('hide', 'Ты в шкафу. Она не найдёт тебя, если не видела, как ты сюда залез. E — выйти.'); }
+  else { const h0 = G.hidden; G.hidden = null; if (h0) G.pos.copy(h0.pos); sound.creak({ x: G.pos.x, y: 1, z: G.pos.z }); }
+  $('hideView').classList.toggle('on', !!G.hidden);
+}
 function tryInteract() {
   if (G.down || G.over) return;
+  if (G.hidden) { setHidden(null); return; }
+  if (G.run && !nearestItem()) { const h = nearestHide(); if (h) { setHidden(h); return; } }
   const it = nearestItem();
   if (it && G.pendingPick !== it.id) {
     G.pendingPick = it.id;
@@ -1464,7 +1644,12 @@ function renderTeam() {
 function setObjective() {
   if (!G) return; renderFuses();
   const C = G.CH.collect, S2 = G.CH.stations; let t = '';
-  if (G.run) t = G.open ? (G.collected < (G.CH.collect ? G.CH.collect.n : 0) ? 'Можно к фургону. Или собрать ещё' : 'Всё собрано. Назад к фургону') : `Найди находки: ${G.collected} из ${G.need}. Без них фургон не уедет`;
+  if (G.run) {
+    const g = G.CH.goal; const left = [];
+    if (G.collected < G.need) left.push(`находки ${G.collected} из ${G.need}`);
+    if (g && !G.goalDone) left.push(g.kind === 'key' ? `найди ${g.label}` : `${g.label} ${G.stDone} из ${g.n}`);
+    t = G.open ? (G.alarm ? 'Бегом к фургону!' : G.collected < (G.CH.collect ? G.CH.collect.n : 0) ? 'Можно к фургону. Или собрать ещё' : 'Всё собрано. Назад к фургону') : 'Нужно: ' + left.join(' · ');
+  }
   else if (G.open) t = G.CH.exitLabel === 'клеть' ? 'Клеть ждёт. Найди её' : `Путь открыт. Найди ${G.CH.exitLabel === 'бадья' ? 'бадью' : G.CH.exitLabel}`;
   else if (C && G.collected < C.n) t = `Найди: ${C.label}`;
   else if (S2) t = S2.kind === 'pump' ? 'Запусти насосы' : S2.kind === 'generator' ? 'Заведи генератор' : S2.kind === 'charge' ? 'Заложи заряды у красных меток' : S2.kind === 'lamp' ? 'Зажги лампады' : 'Найди ворот и подними бадью';
@@ -1516,7 +1701,7 @@ function endRun(win, by) {
   const eps = episodeList(); // весь выпуск: фото и видео всей команды
   eps.forEach((p) => { p.views = Math.round((p.score || 0) * reach); });
   if (!lost && G.tasks) { if (G.cursedTaken) taskSet('cursed', 1); if (G.time <= 360 && G.collected >= 3) taskSet('fast', 1); }
-  const nightK = G.night.views || 1;
+  const nightK = (G.night.views || 1) * (CLS() === 'op' ? 1.2 : 1);
   const views = lost ? 0 : Math.round(eps.reduce((a, p) => a + p.views, 0) * mult * nightK);
   const tasksDone = (G.tasks || []).filter((t) => t.done), taskMoney = lost ? 0 : tasksDone.reduce((a, t) => a + t.money, 0);
   const donated = G.donate || 0; // донаты приходят сразу, их не отнять
@@ -1525,6 +1710,9 @@ function endRun(win, by) {
   const money = (lost ? 0 : Math.round(G.loot + views / 25)) + taskMoney + donated;
   const before = depthsOpen();
   SAVE.subs += newSubs; SAVE.money += money; SAVE.earned = (SAVE.earned || 0) + money; SAVE.episodes++; SAVE.best = Math.max(SAVE.best, views); saveP();
+  // гемы за успешную вылазку: 2 + по одному за задание, +1 за дальние карты, +2 за все задания
+  const gems = lost ? 0 : 2 + tasksDone.length + (G.ch >= 5 ? 1 : 0) + (tasksDone.length === 3 ? 2 : 0);
+  SAVE.gems = (SAVE.gems || 0) + gems;
   // достижения
   SAVE.ach = SAVE.ach || {}; SAVE.nights = SAVE.nights || {}; if (!lost) SAVE.nights[G.night.id] = 1;
   const runInfo = { close: eps.some((p) => p.cat === 'monster_close'), allTasks: !lost && G.tasks && G.tasks.length === 3 && tasksDone.length === 3, cursed: !lost && G.cursedTaken, peak: G.stream ? G.stream.peak : 0, donated, mapsOpen: depthsOpen(), night: G.night.id, win: !lost };
@@ -1539,6 +1727,7 @@ function endRun(win, by) {
   stat(fmt(views), 'просмотров'); stat('+' + fmt(newSubs), 'подписчиков'); stat(fmt(money) + ' ₽', 'заработано'); stat(fmt(SAVE.subs), 'всего подписчиков');
   { const d = document.createElement('p'); d.className = 'note'; d.style.marginTop = '14px';
     const parts = [`${G.night.name}${nightK !== 1 ? ` · просмотры ×${String(nightK).replace('.', ',')}` : ''}`, `задания ${tasksDone.length} из ${(G.tasks || []).length}${taskMoney ? ` · +${fmt(taskMoney)} ₽` : ''}`];
+    if (gems) parts.push(`+${gems} 💎`);
     if (donated) parts.push(`донаты +${fmt(donated)} ₽`); if (G.stream && G.stream.peak) parts.push(`пик эфира ${fmt(G.stream.peak)} зрителей${liveSubs ? `, +${fmt(liveSubs)} подписчиков с эфира` : ''}`);
     d.textContent = parts.join(' · '); st.after(d); setTimeout(() => d.remove(), 60000);
     for (const a of newAch) { const e = document.createElement('p'); e.className = 'note ach'; e.textContent = `Достижение: ${a.name} — ${a.text.toLowerCase()} · +${fmt(a.money)} ₽`; d.after(e); setTimeout(() => e.remove(), 60000); }
@@ -1558,7 +1747,7 @@ function renderHub() {
   $('chanName').value = SAVE.chan;
   const st = $('hubStats'); st.innerHTML = '';
   const stat = (v, l) => { const d = document.createElement('div'); d.innerHTML = '<b></b><span></span>'; d.firstChild.textContent = v; d.lastChild.textContent = l; st.appendChild(d); };
-  stat(fmt(SAVE.subs), 'подписчиков'); stat(fmt(SAVE.money) + ' ₽', 'на счету'); stat(fmt(SAVE.earned || 0) + ' ₽', 'заработано всего'); stat(String(SAVE.episodes), 'выпусков');
+  stat(fmt(SAVE.subs), 'подписчиков'); stat(fmt(SAVE.money) + ' ₽', 'на счету'); stat(fmt(SAVE.earned || 0) + ' ₽', 'заработано всего'); stat((SAVE.gems || 0) + ' 💎', 'гемов'); stat(String(SAVE.episodes), 'выпусков');
   const open = depthsOpen(); hubDepth = Math.min(hubDepth, open - 1);
   const box = $('depthOpts'); box.innerHTML = '';
   MAPS.forEach((C, i) => { const b = document.createElement('button'); b.dataset.v = i; b.textContent = i < open ? C.title : `${C.title} · ${fmt(C.earn)} ₽`; if (i >= open) b.disabled = true; box.appendChild(b); });
@@ -1777,7 +1966,7 @@ function dropHanger(h) {
 
 function updateGame(dt, t) {
   if (!G.over) G.time += dt;
-  if (!G.over && G.intro <= 0) { updatePhone(dt); if (G.run) { updateStream(dt); updateWeather(dt); } }
+  if (!G.over && G.intro <= 0) { updatePhone(dt); if (G.run) { updateStream(dt); updateWeather(dt); updateExtras(dt); } }
   const M = G.m;
   // вступление
   if (G.intro > 0) {
@@ -1786,7 +1975,8 @@ function updateGame(dt, t) {
   }
   let mv = 0;
   G.stun = Math.max(0, G.stun - dt);
-  if (!G.down && !G.over && !G.paused && G.intro <= 0 && G.stun <= 0) {
+  if (G.hidden && (G.down || G.over)) setHidden(null);
+  if (!G.down && !G.over && !G.paused && G.intro <= 0 && G.stun <= 0 && !G.hidden) {
     const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
     const s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
     G.crouch = !!(keys.ControlLeft || keys.ControlRight || keys.KeyC);
@@ -1799,7 +1989,7 @@ function updateGame(dt, t) {
     G.pos.addScaledVector(G.vel, dt);
     collide(G.pos, 0.32);
     G.running = run && mv > 3.5;
-    G.stamina = clamp(G.stamina + (G.running ? -24 * (hasPerk('lungs') ? 0.66 : 1) : 13) * dt, 0, 100);
+    G.stamina = clamp(G.stamina + (G.running && !(G.adrenT > 0) ? -24 * (hasPerk('lungs') ? 0.66 : 1) : 13) * dt, 0, 100);
     G.stepAcc += mv * dt; G.bob += mv * dt * 2.3;
     if (G.stepAcc > (G.running ? 2.0 : G.crouch ? 1.3 : 1.7)) { G.stepAcc = 0; sound.step(G.running, !!G.world.water, G.crouch ? 0.3 : 1); }
   } else G.vel.set(0, 0, 0);
@@ -1859,8 +2049,9 @@ function updateGame(dt, t) {
       if (!stationReady()) prompt = `<span class="k"></span>${G.CH.collect.label} ещё не собраны: ${G.collected} из ${G.CH.collect.n}`;
       else {
         const need = G.CH.stations.hold * (hasPerk('hands') ? 0.6 : 1);
-        prompt = `<span class="k">[E]</span>держать, чтобы ${ST_VERB[G.CH.stations.kind]}`;
-        if (keys.KeyE) {
+        prompt = `<span class="k">[E]</span>держать, чтобы ${(G.CH.goal && G.CH.goal.verb) || ST_VERB[G.CH.stations.kind]}`;
+        if (st.duo && !G.solo && duoCount(st) < 2) prompt = `<span class="k"></span>этот рычаг тяжёлый — нужен второй игрок рядом`;
+        if (keys.KeyE && !(st.duo && !G.solo && duoCount(st) < 2)) {
           G.holding = true; G.noisy = G.CH.stations.kind !== 'lamp' && G.CH.stations.kind !== 'charge';
           G.holdT += dt; $('prog').style.display = 'block'; $('prog').firstChild.style.width = (G.holdT / need * 100) + '%';
           G.mechT = (G.mechT || 0) - dt; if (G.mechT <= 0) { G.mechT = 0.7; sound.creak({ x: st.pos.x, y: 1, z: st.pos.z }); if (st.group.userData.spin) st.group.userData.spin.rotation.z += 1.2; }
@@ -1879,7 +2070,7 @@ function updateGame(dt, t) {
       } else G.reviveHold = 0;
     } else G.reviveHold = 0;
     if (G.run && Math.hypot(G.doorPos.x - G.pos.x, G.doorPos.z - G.pos.z) < 1.6) {
-      if (!G.open) prompt = `<span class="k"></span>фургон закрыт: нужно ещё ${G.need - G.collected} ${G.need - G.collected === 1 ? 'находка' : G.need - G.collected < 5 ? 'находки' : 'находок'}`;
+      if (!G.open) prompt = `<span class="k"></span>фургон не уедет: ${G.collected < G.need ? `нужно ещё ${G.need - G.collected} ${G.need - G.collected === 1 ? 'находка' : G.need - G.collected < 5 ? 'находки' : 'находок'}` : ''}${G.collected < G.need && !G.goalDone ? ' и ' : ''}${!G.goalDone ? G.CH.goal.label : ''}`;
       else if (G.time > 20) {
         prompt = `<span class="k">[E]</span>сесть в фургон и закончить вылазку`;
         if (keys.KeyE && !G._eEsc) { if (isHost) handle({ t: 'esc', from: me.id }, true); else send({ t: 'esc' }); }
@@ -1899,7 +2090,7 @@ function updateGame(dt, t) {
   netT -= dt;
   if (net && netT <= 0 && !G.solo) {
     netT = 0.1;
-    const msg = { t: 'st', p: [+G.pos.x.toFixed(2), +G.pos.z.toFixed(2)], y: +yaw.toFixed(3), pi: +pitch.toFixed(3), f: (G.flashOn && G.bat > 0 && !G.flickerOff) ? 1 : 0, b: Math.round(G.bat), r: G.running ? 1 : 0, c: G.crouch ? 1 : 0, n: G.noisy ? 1 : 0, sf: hasPerk('soft') ? 1 : 0, ph: G.camMode ? 1 : 0, rc: G.rec ? 1 : G.live ? 2 : 0 };
+    const msg = { t: 'st', p: [+G.pos.x.toFixed(2), +G.pos.z.toFixed(2)], y: +yaw.toFixed(3), pi: +pitch.toFixed(3), f: (G.flashOn && G.bat > 0 && !G.flickerOff) ? 1 : 0, b: Math.round(G.bat), r: G.running ? 1 : 0, c: G.crouch ? 1 : 0, n: G.noisy ? 1 : 0, sf: hasPerk('soft') ? 1 : 0, ph: G.camMode ? 1 : 0, rc: G.rec ? 1 : G.live ? 2 : 0, hd: G.hidden ? 1 : 0 };
     if (isHost) { msg.host = 1; msg.m = { x: +M.pos.x.toFixed(2), z: +M.pos.z.toFixed(2), r: +M.ry.toFixed(2), fz: M.fz ? 1 : 0, g: M.g ? 1 : 0, fl: M.fl ? 1 : 0, mv: M.moving ? 1 : 0, md: M.mode }; if (G.crawlers.length) msg.m.cr = G.crawlers.map((c) => [+c.pos.x.toFixed(2), +c.pos.z.toFixed(2), +c.ry.toFixed(2), c.alive ? c.mode : -1]); }
     send(msg);
   }
@@ -1910,6 +2101,7 @@ function updateGame(dt, t) {
   G.shake = Math.max(0, G.shake - dt * 1.5);
   const sh = G.shake * 0.04 + G.fear * 0.003;
   camera.position.set(G.pos.x + (Math.random() - 0.5) * sh, camY + (Math.random() - 0.5) * sh, G.pos.z + (Math.random() - 0.5) * sh);
+  if (G.hidden) camera.position.set(G.hidden.inPos.x, 1.55, G.hidden.inPos.z);
   let fear = 0;
   if (!M.g) fear = clamp(1 - mDist / 16, 0, 1) * (M.mode === 2 ? 1 : 0.6);
   const visible = !M.g && isLitBy({ pos: G.pos, yaw, pitch, flash: true }, M.pos) && mDist < 14;
@@ -2002,6 +2194,7 @@ function updateVisuals(dt, t) {
   for (const p of G.players.values()) {
     const a = p.av; a.group.position.copy(p.pos); a.group.position.y = G.world.water ? 0.05 : 0; a.group.rotation.y = p.yaw;
     const moving = p.pos.distanceTo(p.tpos) > 0.02 && !p.down;
+    a.group.visible = !p.hd;
     poseAvatar(a, { moving, running: p.running, crouch: p.crouch, down: p.down, pitch: p.pitch, dt, phone: p.ph, rec: p.rc });
     const pon = p.flash && !p.down;
     a.beam.visible = pon; a.glow.visible = pon; a.lens.material.color.setHex(pon ? 0xfff2d8 : 0x222222);
@@ -2053,6 +2246,22 @@ $('bGoRun').onclick = () => { SAVE.chan = ($('chanName').value.trim() || SAVE.ch
 $('chanName').addEventListener('input', () => { SAVE.chan = $('chanName').value.slice(0, 24) || 'Ночной эфир'; saveP(); if (MENU) MENU.setName(SAVE.chan); });
 $('bShop').onclick = () => { renderShop(); show('shop'); };
 $('bShopBack').onclick = () => { renderHub(); show('hub'); };
+function renderClasses() {
+  SAVE.owned = SAVE.owned || ['op']; $('clsGems').textContent = `гемов: ${SAVE.gems || 0} 💎 · гемы дают за каждую успешную вылазку и за задания`;
+  const box = $('clsList'); box.innerHTML = '';
+  for (const c of CLASSES) {
+    const own = SAVE.owned.includes(c.id), cur = CLS() === c.id;
+    const d = document.createElement('div'); d.className = 'gear' + (cur ? ' cur' : ''); d.innerHTML = '<div><b></b><span></span><span class="ab"></span></div><button></button>';
+    d.querySelector('b').textContent = c.name + (cur ? ' · выбран' : ''); d.querySelector('span').textContent = c.perk; d.querySelector('.ab').textContent = c.cd ? `X — ${c.ab}` : c.ab;
+    const b = d.querySelector('button');
+    if (cur) { b.textContent = 'выбран'; b.disabled = true; }
+    else if (own) { b.textContent = 'выбрать'; b.onclick = () => { SAVE.cls = c.id; saveP(); sound.select(); renderClasses(); }; }
+    else { b.textContent = `${c.price} 💎`; b.disabled = (SAVE.gems || 0) < c.price; b.onclick = () => { if ((SAVE.gems || 0) < c.price) return; SAVE.gems -= c.price; SAVE.owned.push(c.id); SAVE.cls = c.id; saveP(); sound.pickup(); renderClasses(); }; }
+    box.appendChild(d);
+  }
+}
+$('bClasses').onclick = () => { renderClasses(); show('classes'); };
+$('bClsBack').onclick = () => { renderHub(); show('hub'); };
 $('bAch').onclick = () => {
   const box = $('jlist'); box.innerHTML = ''; SAVE.ach = SAVE.ach || {};
   const n = ACH.filter((a) => SAVE.ach[a.id]).length; const h = document.createElement('div'); h.className = 'lbl'; h.textContent = `достижения · ${n} из ${ACH.length}`; box.appendChild(h);
