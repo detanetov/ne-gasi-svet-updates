@@ -217,6 +217,37 @@
   #galList .th img { width: 100%; height: 100%; object-fit: cover; }
   #galList span { display: block; font-size: 12px; color: var(--dim); margin-top: 5px; }
   /* монтаж на экране результатов */
+  .resCols { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5vw; align-items: start; width: 100%; max-width: 1200px; }
+  #tok { position: relative; height: min(82vh, 800px); width: auto; aspect-ratio: 9 / 19.5; background: #050505; border: 10px solid #0b0b0c; border-radius: 38px; box-shadow: 0 0 0 1px #2d2d30, 0 30px 70px rgba(0,0,0,.7); overflow: hidden; font-family: var(--mono); color: #fff; display: flex; flex-direction: column; }
+  .tokTop { display: flex; justify-content: space-between; padding: 12px 18px 4px; font-size: 11px; color: rgba(255,255,255,.75); }
+  #tokTabs { display: flex; justify-content: center; gap: 14px; padding: 4px 0 8px; z-index: 2; }
+  #tokTabs button { font-size: 12.5px; color: rgba(255,255,255,.55); padding: 3px 0; border-bottom: 2px solid transparent; }
+  #tokTabs button.act { color: #fff; border-color: #fff; }
+  #tokBody { position: relative; flex: 1; overflow: hidden; }
+  .tokHint { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 9.5px; color: rgba(255,255,255,.35); z-index: 3; }
+  .tokCard { position: absolute; inset: 0; }
+  .tokImg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .tokShade { position: absolute; inset: 0; background: linear-gradient(transparent 55%, rgba(0,0,0,.75)); }
+  .tokWait { position: absolute; left: 0; right: 0; top: 45%; text-align: center; font-size: 12px; color: rgba(255,255,255,.6); }
+  .tokSide { position: absolute; right: 10px; bottom: 90px; display: flex; flex-direction: column; gap: 16px; align-items: center; }
+  .tokBtn { display: flex; flex-direction: column; align-items: center; cursor: pointer; text-shadow: 0 1px 3px #000; }
+  .tokBtn i { font-style: normal; font-size: 26px; line-height: 1; } .tokBtn span { font-size: 11px; margin-top: 2px; }
+  .tokBtn.like.on i { color: #ff3b5c; }
+  .tokInfo { position: absolute; left: 12px; right: 64px; bottom: 26px; text-shadow: 0 1px 3px #000; }
+  .tokInfo b { font-weight: normal; font-size: 13px; } .tokInfo p { font-size: 12px; margin: 5px 0; line-height: 1.4; color: rgba(255,255,255,.9); } .tokInfo span { font-size: 11px; color: #ffd65a; }
+  .tokDots { position: absolute; right: 4px; top: 8px; display: flex; flex-direction: column; gap: 4px; } .tokDots i { width: 4px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.3); } .tokDots i.on { background: #fff; height: 12px; }
+  .tokCm { position: absolute; left: 0; right: 0; bottom: 0; max-height: 55%; overflow-y: auto; background: rgba(18,18,20,.97); border-radius: 14px 14px 0 0; padding: 12px 14px 30px; font-size: 12px; line-height: 1.6; z-index: 4; } .tokCm b { font-weight: normal; color: #9fc7ff; }
+  .tokPage { position: absolute; inset: 0; overflow-y: auto; padding: 8px 14px 30px; }
+  .tokGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+  .tokBig { background: #141416; border-radius: 10px; padding: 9px 10px; } .tokBig b { display: block; font-size: 17px; font-weight: normal; } .tokBig span { font-size: 10.5px; color: rgba(255,255,255,.55); }
+  .tokRows > div { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 11.5px; padding: 5px 0; } .tokRows i { grid-column: 1 / -1; height: 3px; background: #1c1c20; border-radius: 2px; } .tokRows u { display: block; height: 100%; background: #ffd65a; border-radius: 2px; } .tokRows b { font-weight: normal; color: #ffd65a; }
+  .tokClip { display: grid; grid-template-columns: 54px 1fr; gap: 8px; align-items: center; margin-top: 7px; font-size: 11px; } .tokClip img { width: 54px; height: 32px; object-fit: cover; border-radius: 4px; background: #141416; } .tokClip i { display: block; height: 3px; background: #1c1c20; margin-top: 4px; } .tokClip u { display: block; height: 100%; background: #ff3b5c; }
+  .tokNote { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 14px; }
+  .tokEmpty { position: absolute; left: 18px; right: 18px; top: 40%; text-align: center; font-size: 12px; line-height: 1.6; color: rgba(255,255,255,.6); }
+  .tokLiveBadge { display: inline-block; background: #d8321f; padding: 3px 9px; border-radius: 4px; font-size: 11.5px; margin-top: 4px; }
+  .tokDon { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; font-size: 11.5px; padding: 5px 0; border-bottom: 1px solid #141416; } .tokDon b { font-weight: normal; color: #9fc7ff; } .tokDon span { color: rgba(255,255,255,.7); } .tokDon em { font-style: normal; color: #ffd65a; }
+  .tokChat { font-size: 11.5px; padding: 2px 0; } .tokChat b { font-weight: normal; color: #9fc7ff; }
+  @media (max-width: 900px) { .resCols { grid-template-columns: 1fr; } }
   #montage { position: relative; width: min(760px, 92vw); margin-top: 26px; cursor: pointer; }
   #montage .frame { position: relative; aspect-ratio: 16 / 9; background: #050505; overflow: hidden; }
   #mtImg { width: 100%; height: 100%; object-fit: cover; display: block; image-rendering: auto; }
@@ -449,11 +480,20 @@
 </div>
 
 <div id="results" class="screen solid" style="justify-content:flex-start;padding-top:7vh;overflow-y:auto">
-  <h2 id="resTitle">Выпуск загружен</h2>
-  <div class="stats" id="resStats"></div>
-  <div id="montage"><div class="frame"><img id="mtImg" alt=""><div id="mtWait"></div><div id="mtWho"></div></div><div class="bar"><b id="mtBar"></b></div><div id="mtCm"></div></div>
-  <div class="photos" id="resPhotos"></div>
-  <nav style="margin-top:18px"><button class="item" id="bResBack">В фургон</button></nav>
+  <div class="resCols">
+    <div class="resLeft">
+      <h2 id="resTitle">Выпуск загружен</h2>
+      <div class="stats" id="resStats"></div>
+      <nav style="margin-top:18px"><button class="item" id="bResBack">В фургон</button></nav>
+      <div id="montage" style="display:none"><div class="frame"><img id="mtImg" alt=""><div id="mtWait"></div><div id="mtWho"></div></div><div class="bar"><b id="mtBar"></b></div><div id="mtCm"></div></div>
+      <div class="photos" id="resPhotos" style="display:none"></div>
+    </div>
+    <div id="tok"><div class="tokTop"><span id="tokHandle"></span><span class="tokTime">03:00</span></div>
+      <div id="tokTabs"><button data-t="feed">Лента</button><button data-t="money">Монетизация</button><button data-t="live">Трансляция</button></div>
+      <div id="tokBody"></div>
+      <div class="tokHint">колесо или ↑↓ — листать · двойной клик — лайк</div>
+    </div>
+  </div>
 </div>
 
 <div id="chapters" class="screen solid">

@@ -1,15 +1,15 @@
 {
- "version": "1.2.1",
+ "version": "1.3.0",
  "minShell": "1.1.0",
- "notes": "Общий сброс прогресса: все начинают с нуля",
+ "notes": "После вылазки — приложение канала: лента роликов с лайками и комментариями, монетизация по статьям дохода, итоги трансляции",
  "files": {
   "icon.png": {
    "sha256": "122987066a6828e7283505447b2a50cec093bc68d231bfce34b5f044dffac8d2",
    "size": 11064
   },
   "index.html": {
-   "sha256": "a80c7f298af9e464a0d73379592c8392f79adb4ae05842b6e14baad13dcfcb2d",
-   "size": 35993
+   "sha256": "72b001a2ea4c2da48732d46823f26d02b081550edb7cb8e0060fd267df8ce72a",
+   "size": 41221
   },
   "splash.html": {
    "sha256": "ae16a3d11e02cd2b2377fcafa2e92d21d57008a16772322ecf54c16c350f449d",
@@ -124,8 +124,8 @@
    "size": 14078
   },
   "js/game.js": {
-   "sha256": "9c0e07a7f5235efcbaa396c1982b2df47daa7e29c51f7e8725af30a4118dfbf6",
-   "size": 193863
+   "sha256": "4ea3bd1df23d58c32f69710928163e13eb445bdce6bda237da6a60698f229e4c",
+   "size": 204587
   },
   "js/human.js": {
    "sha256": "4ec31ed0cc95ee02037ad843495a286f79c4656597134702fae6062187aed225",

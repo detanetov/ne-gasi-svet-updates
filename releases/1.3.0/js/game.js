@@ -1566,7 +1566,7 @@ function streamFrame(res) {
   st.peak = Math.max(st.peak, st.viewers);
   const k = (G.night.donate || 1) * (hasGear('lens') ? 1.2 : 1) * (CLS() === 'streamer' ? 2 : 1);
   if (Math.random() < Math.min(0.08, res.score / 40000) * k) {
-    const d = donation(res.score, k); st.donated += d.sum; G.donate = (G.donate || 0) + d.sum;
+    const d = donation(res.score, k); st.donated += d.sum; G.donate = (G.donate || 0) + d.sum; (st.dons = st.dons || []).push(d);
     pushChat({ who: d.who, text: `донат ${d.sum} ₽ — ${d.text}`, don: true }); sound.pickup();
   }
   const scary = res.cat !== 'nothing';
@@ -1582,6 +1582,7 @@ function updateStream(dt) {
   const st = G.stream; if (!st) return;
   if (!G.live) { st.viewers = Math.max(0, Math.round(st.viewers * (1 - dt * 0.6))); if (st.lines.length) { st.lines = []; $('phChat').innerHTML = ''; } }
   else st.subs = (st.subs || 0) + st.viewers * dt * 0.0015;
+  if (G.live) { st.sec = (st.sec || 0) + dt; st.watch = (st.watch || 0) + st.viewers * dt; }
   const live = G.live ? `● LIVE · ${fmt(st.viewers)} зрителей` : ''; if ($('phLive').textContent !== live) $('phLive').textContent = live;
 }
 // гроза: молния, через секунду-две гром
@@ -1597,7 +1598,6 @@ function startMontage(lost) {
   const box = $('montage'); const list = episodeList();
   if (montage) clearInterval(montage.timer);
   if (!list.length) { box.style.display = 'none'; montage = null; return; }
-  box.style.display = '';
   montage = { list, i: 0, k: 0, hold: 0, paused: false, dirty: true, lost, cm: null };
   const img = $('mtImg'), who = $('mtWho'), bar = $('mtBar'), cm = $('mtCm');
   const total = list.reduce((a, it) => a + (it.kind === 'photo' ? 3 : it.n), 0);
@@ -1648,6 +1648,93 @@ function openGallery(on) {
   });
   g.classList.add('on');
 }
+// ---------------- Приложение канала после вылазки: лента, монетизация, эфир ----------------
+let TOK = null, tokTab = 'feed', tokI = 0, tokTimer = null, tokK = 0;
+const rnd = (seed) => { let z = seed >>> 0 || 1; return () => { z = (z * 1103515245 + 12345) >>> 0; return z / 4294967296; }; };
+function tokItems() {
+  return episodeList().map((it, i) => {
+    const R = rnd((it.id || '').split('').reduce((a, c) => a + c.charCodeAt(0), 7) + i * 31);
+    const v = TOK.lost ? 0 : Math.round((it.views || 0) * TOK.k);
+    if (it._tok == null) it._tok = { likes: Math.round(v * (0.05 + R() * 0.09)), shares: Math.round(v * (0.004 + R() * 0.01)), saves: Math.round(v * (0.006 + R() * 0.012)), cm: comments(it.cat, 4) };
+    return { it, v, ...it._tok };
+  });
+}
+function renderTok() {
+  const box = $('tok'); if (!TOK) return;
+  $('tokTabs').querySelectorAll('button').forEach((b) => { b.classList.toggle('act', b.dataset.t === tokTab); b.onclick = () => { tokTab = b.dataset.t; tokI = 0; sound.tick(); renderTok(); }; });
+  const body = $('tokBody'); body.innerHTML = ''; clearInterval(tokTimer);
+  $('tokHandle').textContent = '@' + (SAVE.chan || 'nochnoy_efir').toLowerCase().replace(/\s+/g, '_');
+  if (tokTab === 'feed') renderTokFeed(body);
+  else if (tokTab === 'money') renderTokMoney(body);
+  else renderTokLive(body);
+  void box;
+}
+function renderTokFeed(body) {
+  const list = tokItems();
+  if (!list.length) { body.innerHTML = '<div class="tokEmpty">В этом выпуске нет ни одного кадра.<br>Достань телефон в следующий раз — Q</div>'; return; }
+  tokI = Math.max(0, Math.min(tokI, list.length - 1));
+  const X = list[tokI], it = X.it;
+  const card = document.createElement('div'); card.className = 'tokCard';
+  card.innerHTML = '<img class="tokImg"><div class="tokShade"></div><div class="tokWait"></div><div class="tokSide"></div><div class="tokInfo"><b class="tokWho"></b><p class="tokCap"></p><span class="tokViews"></span></div><div class="tokDots"></div><div class="tokCm" style="display:none"></div>';
+  body.appendChild(card);
+  const img = card.querySelector('.tokImg'), wait = card.querySelector('.tokWait');
+  const side = card.querySelector('.tokSide');
+  const btn = (icon, n, cls) => { const d = document.createElement('div'); d.className = 'tokBtn ' + (cls || ''); d.innerHTML = `<i>${icon}</i><span></span>`; d.lastChild.textContent = fmt(n); side.appendChild(d); return d; };
+  const like = btn('♥', X.likes, 'like'); btn('💬', X.cm.length + Math.round(X.likes * 0.04)).onclick = () => { const c = card.querySelector('.tokCm'); c.style.display = c.style.display === 'none' ? '' : 'none'; }; btn('↗', X.shares); btn('🔖', X.saves);
+  like.onclick = () => { like.classList.toggle('on'); sound.tick(); };
+  card.querySelector('.tokWho').textContent = (it.by === me.id ? '@' + (SAVE.chan || 'канал').toLowerCase().replace(/\s+/g, '_') : '@' + it.name.toLowerCase()) + (it.kind === 'video' ? ' · видео' : ' · фото');
+  const caps = { monster: 'она стояла в конце коридора 😳 #заброшка #ночнойэфир', monster_close: 'я больше туда не пойду… #страшно #реальность', selfie_monster: 'обернулся слишком поздно 💀 #заброшка', selfie: 'ночная вылазка, всё нормально… пока что', crawler: 'ЧТО ЭТО ПОЛЗЁТ #неонтаж', friend: 'мы его не бросили (почти) #кооп', phantom: 'кто стоял за мной?? пересмотрите', body: 'не открывайте мешки #заброшка', nothing: 'атмосферно. продолжение в следующем выпуске' };
+  card.querySelector('.tokCap').textContent = caps[it.cat] || caps.nothing;
+  card.querySelector('.tokViews').textContent = TOK.lost ? 'запись потеряна' : `▶ ${fmt(X.v)} просмотров · ${fmt(Math.round(X.v / 25))} ₽`;
+  const cm = card.querySelector('.tokCm'); cm.innerHTML = '<div class="lbl">комментарии</div>';
+  for (const c of X.cm) { const e = document.createElement('div'); e.innerHTML = '<b></b> '; e.firstChild.textContent = c.who; e.append(c.text); cm.appendChild(e); }
+  const dots = card.querySelector('.tokDots'); list.forEach((_, i) => { const d = document.createElement('i'); if (i === tokI) d.className = 'on'; dots.appendChild(d); });
+  // воспроизведение: видео идёт 2 кадра в секунду, фото стоит
+  tokK = 0;
+  const show = () => {
+    const fr = it.frames.filter((f) => f && f.img); const f = it.kind === 'video' ? it.frames[tokK % Math.max(1, it.frames.length)] : fr[0];
+    if (f && f.img) { img.src = f.img; img.style.opacity = TOK.lost ? 0.3 : 1; wait.textContent = ''; } else wait.textContent = it.by === me.id ? '' : `кадры от ${it.name} ещё грузятся…`;
+    tokK++;
+  };
+  show(); tokTimer = setInterval(show, 500);
+  card.onwheel = (e) => { e.preventDefault(); tokScroll(e.deltaY > 0 ? 1 : -1); };
+  card.ondblclick = () => { like.classList.add('on'); sound.tick(); };
+}
+function tokScroll(d) { const n = tokItems().length; if (!n) return; const k = Math.max(0, Math.min(n - 1, tokI + d)); if (k !== tokI) { tokI = k; sound.tick(); renderTok(); } }
+function renderTokMoney(body) {
+  const T = TOK; const w = document.createElement('div'); w.className = 'tokPage';
+  const big = (v, l) => `<div class="tokBig"><b>${v}</b><span>${l}</span></div>`;
+  w.innerHTML = `<div class="lbl">монетизация · ${T.ct} · ${T.night}</div>` + `<div class="tokGrid">${big(fmt(T.views), 'просмотров')}${big('+' + fmt(T.newSubs), 'подписчиков')}${big(fmt(T.money) + ' ₽', 'доход за выпуск')}${big('+' + (T.gems || 0) + ' 💎', 'гемов')}</div>`;
+  const rows = [['Просмотры видео и фото', T.viewMoney], ['Находки', T.lootMoney], ['Задания зрителей', T.taskMoney], ['Донаты в эфире', T.donated], ['Спасённый зритель', T.npc], ...T.ach.map((a) => ['Достижение «' + a.name + '»', a.money])].filter((r) => r[1]);
+  const max = Math.max(1, ...rows.map((r) => r[1]));
+  const tbl = document.createElement('div'); tbl.className = 'tokRows';
+  for (const [n, v] of rows) { const r = document.createElement('div'); r.innerHTML = '<span></span><b></b><i><u></u></i>'; r.children[0].textContent = n; r.children[1].textContent = fmt(v) + ' ₽'; r.querySelector('u').style.width = (v / max * 100) + '%'; tbl.appendChild(r); }
+  if (!rows.length) tbl.innerHTML = '<p class="tokEmpty">В этот раз ничего не заработано.</p>';
+  w.appendChild(tbl);
+  // просмотры по каждому ролику
+  const list = tokItems().sort((a, b) => b.v - a.v).slice(0, 6);
+  if (list.length) {
+    const h = document.createElement('div'); h.className = 'lbl'; h.style.marginTop = '14px'; h.textContent = 'лучшие ролики'; w.appendChild(h);
+    const vmax = Math.max(1, ...list.map((x) => x.v));
+    for (const x of list) { const r = document.createElement('div'); r.className = 'tokClip'; const f = bestFrame(x.it); r.innerHTML = '<img><div><span></span><i><u></u></i></div>'; if (f) r.querySelector('img').src = f.img; r.querySelector('span').textContent = `${fmt(x.v)} просм. · ♥ ${fmt(x.likes)}`; r.querySelector('u').style.width = (x.v / vmax * 100) + '%'; w.appendChild(r); }
+  }
+  const tot = document.createElement('p'); tot.className = 'tokNote'; tot.textContent = `Всего на канале: ${fmt(SAVE.subs)} подписчиков · ${fmt(SAVE.money)} ₽ на счету`; w.appendChild(tot);
+  body.appendChild(w);
+}
+function renderTokLive(body) {
+  const st = TOK.stream || {}; const w = document.createElement('div'); w.className = 'tokPage';
+  if (!st.sec) { w.innerHTML = '<div class="tokEmpty">Прямого эфира в этой вылазке не было.<br>Телефон → R до режима «ЭФИР» → левая кнопка мыши.</div>'; body.appendChild(w); return; }
+  const m = Math.floor(st.sec / 60), sc = Math.floor(st.sec % 60);
+  const big = (v, l) => `<div class="tokBig"><b>${v}</b><span>${l}</span></div>`;
+  w.innerHTML = '<div class="tokLiveBadge">● LIVE завершён</div>' + `<div class="tokGrid">${big(`${m}:${String(sc).padStart(2, '0')}`, 'длительность')}${big(fmt(st.peak || 0), 'пик зрителей')}${big(fmt(Math.round((st.watch || 0) / Math.max(1, st.sec))), 'в среднем')}${big('+' + fmt(TOK.liveSubs), 'подписчиков')}${big(fmt(st.donated || 0) + ' ₽', 'донаты')}${big(fmt((st.dons || []).length), 'донатов')}</div>`;
+  const dons = (st.dons || []).slice().sort((a, b) => b.sum - a.sum).slice(0, 6);
+  if (dons.length) { const h = document.createElement('div'); h.className = 'lbl'; h.style.marginTop = '12px'; h.textContent = 'топ донатеров'; w.appendChild(h); for (const d of dons) { const r = document.createElement('div'); r.className = 'tokDon'; r.innerHTML = '<b></b><span></span><em></em>'; r.children[0].textContent = d.who; r.children[1].textContent = d.text; r.children[2].textContent = fmt(d.sum) + ' ₽'; w.appendChild(r); } }
+  const lines = (st.lines || []).slice(-5); if (lines.length) { const h = document.createElement('div'); h.className = 'lbl'; h.style.marginTop = '12px'; h.textContent = 'последние сообщения чата'; w.appendChild(h); for (const l of lines) { const r = document.createElement('div'); r.className = 'tokChat'; r.innerHTML = '<b></b> '; r.firstChild.textContent = l.who; r.append(l.text); w.appendChild(r); } }
+  body.appendChild(w);
+}
+function tokDirty() { if (TOK && $('results').classList.contains('on') && tokTab !== 'feed') return; }
+function stopTok() { clearInterval(tokTimer); }
+addEventListener('keydown', (e) => { if (!$('results').classList.contains('on') || tokTab !== 'feed') return; if (e.code === 'ArrowDown' || e.code === 'KeyS') tokScroll(1); if (e.code === 'ArrowUp' || e.code === 'KeyW') tokScroll(-1); });
 function stopMontage() { if (montage) clearInterval(montage.timer); montage = null; }
 
 function toggleFlash() { if (G.down) return; G.flashOn = !G.flashOn; sound.click(); }
@@ -1771,6 +1858,8 @@ function endRun(win, by) {
   const liveSubs = Math.round((G.stream && G.stream.subs) || 0);
   const newSubs = liveSubs + Math.round(views / 9) + (lost ? 0 : tasksDone.length * Math.round(20 + SAVE.subs * 0.01));
   const money = (lost ? 0 : Math.round((G.loot + views / 25) * CT.k) + (G.npcSaved ? 3000 : 0)) + taskMoney + donated;
+  const lootMoney = lost ? 0 : Math.round(G.loot * CT.k), viewMoney = lost ? 0 : Math.round(views / 25 * CT.k);
+  TOK = { lost, views, newSubs, liveSubs, money, lootMoney, viewMoney, taskMoney, donated, npc: G.npcSaved ? 3000 : 0, k: nightK * mult, stream: G.stream || {}, ct: CT.name, night: G.night.name, subs0: SAVE.subs, ach: [] };
   const before = depthsOpen();
   SAVE.subs += newSubs; SAVE.money += money; SAVE.earned = (SAVE.earned || 0) + money; SAVE.episodes++; SAVE.best = Math.max(SAVE.best, views); saveP();
   // гемы за успешную вылазку: 2 + по одному за задание, +1 за дальние карты, +2 за все задания
@@ -1781,6 +1870,7 @@ function endRun(win, by) {
   const runInfo = { close: eps.some((p) => p.cat === 'monster_close'), allTasks: !lost && G.tasks && G.tasks.length === 3 && tasksDone.length === 3, cursed: !lost && G.cursedTaken, peak: G.stream ? G.stream.peak : 0, donated, mapsOpen: depthsOpen(), night: G.night.id, win: !lost };
   const newAch = ACH.filter((a) => !SAVE.ach[a.id] && a.test(SAVE, runInfo));
   for (const a of newAch) { SAVE.ach[a.id] = 1; SAVE.money += a.money; SAVE.earned += a.money; }
+  TOK.ach = newAch; TOK.gems = gems;
   saveP();
   const after = depthsOpen();
   $('resTitle').textContent = lost ? (G.dawnLost ? 'Рассвет. Материала не хватило' : G.solo ? 'Камера разбита' : 'Тебя не вытащили') : `Выпуск №${SAVE.episodes} загружен`;
@@ -1799,7 +1889,8 @@ function endRun(win, by) {
   if (after > before) { const d = document.createElement('p'); d.className = 'note'; d.style.cssText = 'margin-top:14px;color:var(--ink)'; d.textContent = `Открыта новая карта: ${MAPS[after - 1].title}. И пришло сообщение от подписчика.`; st.after(d); setTimeout(() => d.remove(), 60000); }
   renderResCards(lost);
   startMontage(lost); uploadMedia();
-  if (montage) montage.onDirty = () => renderResCards(lost);
+  renderTok();
+  if (montage) montage.onDirty = () => { renderResCards(lost); tokDirty(); };
   if (!lost) sound.liftUp();
   setTimeout(() => show('results'), lost ? 1500 : 300);
 }
@@ -2376,7 +2467,7 @@ $('bCustom').onclick = () => { renderCustom(); show('custom'); };
 $('bCustomBack').onclick = () => { if (MENU) MENU.setParty([{ name: S.nick, look: SAVE.look }]); show('menu'); };
 $('bRandLook').onclick = () => { SAVE.look = randomLook(); saveP(); renderCustom(); };
 $('bResBack').onclick = () => {
-  stopMontage();
+  stopMontage(); stopTok();
   if (net) { // остаёмся в пати: все в фургон, хост запускает следующую вылазку
     mode = 'lobby'; startAttract(); renderLobby(); show('lobby'); startLobbyLoop();
     $('lobbyKind').textContent = isHost ? 'фургон · можно звать ещё друзей' : 'фургон'; return;
