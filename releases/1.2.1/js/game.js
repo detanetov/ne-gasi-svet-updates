@@ -58,6 +58,11 @@ const UP = (k) => ((SAVE.up || {})[k] | 0);
 const CONS = (k) => ((SAVE.cons || {})[k] | 0);
 function useCons(k) { SAVE.cons = SAVE.cons || {}; if (!SAVE.cons[k]) return false; SAVE.cons[k]--; saveP(); return true; }
 const hasPerk = (k) => SAVE.perks.includes(k) || hasGear(k) || (k === 'soft' && hasGear('boots')) || (k === 'battery' && (hasGear('torch') || CLS() === 'priest')) || (k === 'medic' && CLS() === 'medic') || (k === 'hands' && CLS() === 'tech') || (k === 'eyes' && CLS() === 'scout');
+// общий сброс прогресса (версия 1.2.1): деньги, подписчики, просмотры, гемы, покупки, достижения — с нуля. Внешность и название канала остаются
+if ((SAVE.wipe | 0) < 1) {
+  Object.assign(SAVE, { subs: 0, money: 0, earned: 0, best: 0, episodes: 0, gems: 0, gear: [], up: {}, cons: {}, ach: {}, nights: {}, owned: ['op'], cls: 'op', ad: 0, perks: [], notes: {}, unlocked: 1, ch: 0, done: false, migr7: 1, wipe: 1 });
+  saveP();
+}
 if (SAVE.earned == null) SAVE.earned = SAVE.money + (SAVE.gear || []).reduce((a, k) => a + (GEAR[k] ? GEAR[k].price : 0), 0);
 // старые сохранения: глубины открывались по подписчикам, карты — по заработку. Всё, что было открыто, остаётся открытым
 if (!SAVE.migr7) {
