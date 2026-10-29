@@ -1,15 +1,15 @@
 {
- "version": "1.1.1",
+ "version": "1.1.2",
  "minShell": "1.1.0",
- "notes": "Шея короче, плечи выше",
+ "notes": "Кнопка «Классы» в главном меню и «Мой класс» в комнате с друзьями",
  "files": {
   "icon.png": {
    "sha256": "122987066a6828e7283505447b2a50cec093bc68d231bfce34b5f044dffac8d2",
    "size": 11064
   },
   "index.html": {
-   "sha256": "03aca38cccd4ca6df52ae29a7a23b1739ee699e651dcc72aef4e264a3c2b07b9",
-   "size": 34950
+   "sha256": "d64c507d4d8444b9a333a8d0abe4a9076aa513fe52f426fa7dd9c7b4e8eb1b76",
+   "size": 35087
   },
   "splash.html": {
    "sha256": "ae16a3d11e02cd2b2377fcafa2e92d21d57008a16772322ecf54c16c350f449d",
@@ -124,8 +124,8 @@
    "size": 10762
   },
   "js/game.js": {
-   "sha256": "01746a8e4929f4ad70360f6fa1f803e950c96d76d1a979ab66b960679d6a339f",
-   "size": 183517
+   "sha256": "3278f9e1e40bd3632463a5c24bb50e8e85730f831b0b0af17bf7aa3ea9a33116",
+   "size": 183757
   },
   "js/human.js": {
    "sha256": "4ec31ed0cc95ee02037ad843495a286f79c4656597134702fae6062187aed225",

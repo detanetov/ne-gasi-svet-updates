@@ -2283,8 +2283,11 @@ function renderClasses() {
     box.appendChild(d);
   }
 }
-$('bClasses').onclick = () => { renderClasses(); show('classes'); };
-$('bClsBack').onclick = () => { renderHub(); show('hub'); };
+let clsBack = 'hub';
+$('bClasses').onclick = () => { clsBack = 'hub'; renderClasses(); show('classes'); };
+$('bClassesM').onclick = () => { clsBack = 'menu'; renderClasses(); show('classes'); };
+$('bClassesL').onclick = () => { clsBack = 'lobby'; renderClasses(); show('classes'); };
+$('bClsBack').onclick = () => { if (clsBack === 'hub') renderHub(); show(clsBack); };
 $('bAch').onclick = () => {
   const box = $('jlist'); box.innerHTML = ''; SAVE.ach = SAVE.ach || {};
   const n = ACH.filter((a) => SAVE.ach[a.id]).length; const h = document.createElement('div'); h.className = 'lbl'; h.textContent = `достижения · ${n} из ${ACH.length}`; box.appendChild(h);
