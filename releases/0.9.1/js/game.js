@@ -596,7 +596,7 @@ function onState(m) {
   if (!p) return;
   p.last = performance.now();
   p.moving = Math.hypot(m.p[0] - p.tpos.x, m.p[1] - p.tpos.z) > 0.04;
-  p.tpos.set(m.p[0], 0, m.p[1]); p.tyaw = m.y; p.pitch = m.pi; p.flash = !!m.f; p.running = !!m.r; p.bat = m.b; p.crouch = !!m.c; p.noisy = !!m.n; p.soft = !!m.sf; if (p.rc !== !!m.rc) { p.rc = !!m.rc; renderTeam(); } p.ph = !!m.ph;
+  p.tpos.set(m.p[0], 0, m.p[1]); p.tyaw = m.y; p.pitch = m.pi; p.flash = !!m.f; p.running = !!m.r; p.bat = m.b; p.crouch = !!m.c; p.noisy = !!m.n; p.soft = !!m.sf; if (p.rc !== (m.rc | 0)) { p.rc = m.rc | 0; renderTeam(); } p.ph = !!m.ph;
   if (m.m && !isHost) {
     const M = G.m; const wasGone = M.g;
     M.target.set(m.m.x, 0, m.m.z); M.ry = m.m.r; M.fz = !!m.m.fz; M.g = !!m.m.g; M.fl = !!m.m.fl; M.moving = !!m.m.mv; M.mode = m.m.md | 0;
@@ -1114,14 +1114,14 @@ addEventListener('keydown', (e) => {
     if (e.code === 'KeyQ') setPhone(!G.camMode);
     if (e.code === 'Digit1') setPhone(false);
     if (e.code === 'Digit2') setPhone(true);
-    if (e.code === 'KeyR' && G.camMode) setPhoneMode(G.phMode === 'video' ? 'photo' : 'video');
+    if (e.code === 'KeyR' && G.camMode) setPhoneMode(({ photo: 'video', video: 'live', live: 'photo' })[G.phMode]);
     if (e.code === 'Tab') { e.preventDefault(); openGallery(true); }
   }
   if (e.code === 'Digit3' && G.flares > 0) throwFlare();
   if (e.code === 'KeyE') { if (noteOpen) { closeNote(); return; } tryInteract(); }
 });
 addEventListener('keyup', (e) => { keys[e.code] = false; if (e.code === 'Tab') openGallery(false); });
-addEventListener('wheel', (e) => { if (mode !== 'game' || !G || !G.run || G.down || G.paused) return; if (!G.camMode) { if (e.deltaY > 0) setPhone(true); return; } if (e.deltaY < 0 && !G.rec) setPhone(false); else if (e.deltaY > 0) setPhoneMode(G.phMode === 'video' ? 'photo' : 'video'); }, { passive: true });
+addEventListener('wheel', (e) => { if (mode !== 'game' || !G || !G.run || G.down || G.paused) return; if (!G.camMode) { if (e.deltaY > 0) setPhone(true); return; } if (e.deltaY < 0 && !G.rec && !G.live) setPhone(false); else if (e.deltaY > 0) setPhoneMode(({ photo: 'video', video: 'live', live: 'photo' })[G.phMode]); }, { passive: true });
 canvas.addEventListener('mousedown', (e) => {
   if (mode !== 'game' || !G) return;
   if (document.pointerLockElement !== canvas) { if (!G.over) lockPointer(); return; }
@@ -1169,23 +1169,27 @@ function setPhone(on) {
   if (!G || !G.run) return;
   on = on && !G.down;
   if (!on && G.rec) stopRec();
+  if (!on && G.live) stopLive();
   if (G.camMode === on) return;
   G.camMode = on; $('phone').classList.toggle('on', on); $('phoneDim').classList.toggle('on', on); renderPhone(); sound.click();
 }
-function setPhoneMode(m) { if (!G || G.rec) return; G.phMode = m; renderPhone(); sound.click(); }
+function setPhoneMode(m) { if (!G || G.rec || G.live) return; G.phMode = m; renderPhone(); sound.click(); }
 function renderPhone() {
   if (!G) return;
-  $('phone').dataset.mode = G.phMode; $('phone').classList.toggle('rec', !!G.rec);
+  $('phone').dataset.mode = G.phMode; $('phone').classList.toggle('rec', !!G.rec || !!G.live);
   const left = memLeft(), pct = Math.max(0, Math.round(left / G.memMax * 100));
   $('phMem').textContent = `память ${pct}%`;
   $('phBat').textContent = Math.round(G.phBat) + '%';
   $('phTime').textContent = clockTxt().slice(0, 5);
   if (G.rec) { const sec = Math.floor(G.rec.frames.length / 2); $('phRec').textContent = `● ${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`; }
+  else if (G.live) { const sec = Math.floor(G.time - G.live.t0); $('phRec').textContent = `● ЭФИР ${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`; }
+  else if (G.phMode === 'live') $('phRec').textContent = 'эфир не тратит память';
   else $('phRec').textContent = G.phMode === 'video' ? `осталось ${Math.floor(left / 2 / 60)}:${String(Math.floor(left / 2) % 60).padStart(2, '0')}` : `снимков ≈ ${Math.floor(left / MEM_PHOTO)}`;
 }
 function shutter() {
   if (!G.camMode || G.down) return;
   if (G.phMode === 'video') { if (G.rec) stopRec(); else startRec(); return; }
+  if (G.phMode === 'live') { if (G.live) stopLive(); else startLive(); return; }
   takePhoto();
 }
 function mediaMeta(it) { return { t: 'md', id: it.id, by: it.by, name: it.name, kind: it.kind, t0: it.t0, score: it.score, cat: it.cat, n: it.n }; }
@@ -1203,6 +1207,13 @@ function takePhoto() {
   send(mediaMeta(it));
   renderPhone();
 }
+// прямой эфир: память не тратит, кадров в монтаж не даёт; зрители, чат, донаты и подписчики — сразу
+function startLive() {
+  G.live = { t0: G.time, acc: 0.5 }; G.stream.lines = []; $('phChat').innerHTML = ''; sound.click(); renderPhone(); renderTeam();
+  pushChat({ who: 'чат', text: 'эфир начался' });
+  hint('live', 'Ты в прямом эфире. Чем страшнее то, что в кадре, тем больше зрителей и донатов. Эфир сажает телефон быстрее записи.');
+}
+function stopLive() { if (!G.live) return; G.live = null; sound.click(); renderPhone(); renderTeam(); }
 function startRec() {
   if (memLeft() < 4) { log('Память телефона заполнена'); return; }
   const it = { id: me.id + ':' + (G.mediaN = (G.mediaN || 0) + 1), by: me.id, name: S.nick, kind: 'video', t0: G.time, score: 0, cat: 'nothing', n: 0, frames: [], own: true, best: 0 };
@@ -1215,7 +1226,7 @@ function recFrame() {
   G.memUsed += 1; it.n = k + 1;
   it.frames[k] = { img: null, s: res.score, c: res.cat };
   if (res.score > it.best) { it.best = res.score; it.cat = res.cat; }
-  taskShot(res.cat, it, true); streamFrame(res);
+  taskShot(res.cat, it, true);
   it.score = Math.round(it.frames.reduce((a, f) => a + f.s, 0) * 0.3 + it.best);
   const ts = '● ' + clockTxt(); grab(192, 108, 0.6, (c, x) => { stamp(x, 192, 108, ts); it.frames[k].img = c.toDataURL('image/jpeg', 0.58); if (k % 6 === 0) $('phThumb').src = it.frames[k].img; });
   if (it.n - R.sent >= 4) { R.sent = it.n; send(mediaMeta(it)); }
@@ -1230,7 +1241,8 @@ function stopRec() {
 function updatePhone(dt) {
   if (!G.run) return;
   if (G.rec) { G.rec.acc += dt; while (G.rec && G.rec.acc >= 0.5) { G.rec.acc -= 0.5; recFrame(); } }
-  if (G.camMode) { G.phBat = Math.max(0, G.phBat - dt * (G.rec ? 0.09 : 0.03)); if (G.phBat <= 0) { log('Телефон сел'); setPhone(false); } }
+  if (G.live) { G.live.acc += dt; while (G.live && G.live.acc >= 0.5) { G.live.acc -= 0.5; const res = scorePhoto(); taskShot(res.cat, G.live); streamFrame(res); } }
+  if (G.camMode) { G.phBat = Math.max(0, G.phBat - dt * (G.live ? 0.14 : G.rec ? 0.09 : 0.03)); if (G.phBat <= 0) { log('Телефон сел'); setPhone(false); } }
   G._phT = (G._phT || 0) + dt; if (G.camMode && G._phT > 0.25) { G._phT = 0; renderPhone(); }
 }
 // чужие фрагменты: сначала описание (во время вылазки), кадры — после
@@ -1312,8 +1324,9 @@ function pushChat(l) {
 }
 function updateStream(dt) {
   const st = G.stream; if (!st) return;
-  if (!G.rec) { st.viewers = Math.max(0, Math.round(st.viewers * (1 - dt * 0.6))); if (st.lines.length && !G.camMode) { st.lines = []; $('phChat').innerHTML = ''; } }
-  const live = G.rec ? `● LIVE · ${fmt(st.viewers)} зрителей` : ''; if ($('phLive').textContent !== live) $('phLive').textContent = live;
+  if (!G.live) { st.viewers = Math.max(0, Math.round(st.viewers * (1 - dt * 0.6))); if (st.lines.length) { st.lines = []; $('phChat').innerHTML = ''; } }
+  else st.subs = (st.subs || 0) + st.viewers * dt * 0.0015;
+  const live = G.live ? `● LIVE · ${fmt(st.viewers)} зрителей` : ''; if ($('phLive').textContent !== live) $('phLive').textContent = live;
 }
 // гроза: молния, через секунду-две гром
 function updateWeather(dt) {
@@ -1420,8 +1433,8 @@ function renderFuses() {
 }
 function renderTeam() {
   const t = $('team'); t.innerHTML = ''; if (!G || G.solo) return;
-  const add = (name, color, down, rc) => { const d = document.createElement('div'); if (down) d.className = 'down'; d.innerHTML = `<i style="background:${COLORS[color % COLORS.length]}"></i><span></span>`; d.querySelector('span').textContent = name + (down ? ', схвачен' : ''); if (rc && !down) { const r = document.createElement('em'); r.className = 'rc'; r.textContent = '● REC'; d.appendChild(r); } t.appendChild(d); };
-  add(S.nick + ' (ты)', S.color, G.down, !!G.rec);
+  const add = (name, color, down, rc) => { const d = document.createElement('div'); if (down) d.className = 'down'; d.innerHTML = `<i style="background:${COLORS[color % COLORS.length]}"></i><span></span>`; d.querySelector('span').textContent = name + (down ? ', схвачен' : ''); if (rc && !down) { const r = document.createElement('em'); r.className = 'rc'; r.textContent = rc === 2 ? '● ЭФИР' : '● REC'; d.appendChild(r); } t.appendChild(d); };
+  add(S.nick + ' (ты)', S.color, G.down, G.rec ? 1 : G.live ? 2 : 0);
   for (const p of G.players.values()) add(p.name, p.color, p.down, p.rc);
 }
 function setObjective() {
@@ -1471,7 +1484,7 @@ function endGame(win, by) {
 function endRun(win, by) {
   G.over = true; mode = 'end';
   if (document.pointerLockElement) document.exitPointerLock();
-  $('downed').classList.remove('on'); $('hud').classList.remove('on'); $('lockHint').style.display = 'none'; closeNote(); if (G.rec) stopRec(); $('phone').classList.remove('on'); $('phoneDim').classList.remove('on'); openGallery(false);
+  $('downed').classList.remove('on'); $('hud').classList.remove('on'); $('lockHint').style.display = 'none'; closeNote(); if (G.rec) stopRec(); if (G.live) stopLive(); $('phone').classList.remove('on'); $('phoneDim').classList.remove('on'); openGallery(false);
   const lost = !win || G.down;
   const mult = hasGear('lens') ? 1 : 1;
   const reach = 1 + SAVE.subs / 5000; // чем больше подписчиков, тем больше людей видит выпуск
@@ -1483,7 +1496,8 @@ function endRun(win, by) {
   const views = lost ? 0 : Math.round(eps.reduce((a, p) => a + p.views, 0) * mult * nightK);
   const tasksDone = (G.tasks || []).filter((t) => t.done), taskMoney = lost ? 0 : tasksDone.reduce((a, t) => a + t.money, 0);
   const donated = G.donate || 0; // донаты приходят сразу, их не отнять
-  const newSubs = Math.round(views / 9) + (lost ? 0 : tasksDone.length * Math.round(20 + SAVE.subs * 0.01));
+  const liveSubs = Math.round((G.stream && G.stream.subs) || 0);
+  const newSubs = liveSubs + Math.round(views / 9) + (lost ? 0 : tasksDone.length * Math.round(20 + SAVE.subs * 0.01));
   const money = (lost ? 0 : Math.round(G.loot + views / 25)) + taskMoney + donated;
   const before = depthsOpen();
   SAVE.subs += newSubs; SAVE.money += money; SAVE.earned = (SAVE.earned || 0) + money; SAVE.episodes++; SAVE.best = Math.max(SAVE.best, views); saveP();
@@ -1501,11 +1515,11 @@ function endRun(win, by) {
   stat(fmt(views), 'просмотров'); stat('+' + fmt(newSubs), 'подписчиков'); stat(fmt(money) + ' ₽', 'заработано'); stat(fmt(SAVE.subs), 'всего подписчиков');
   { const d = document.createElement('p'); d.className = 'note'; d.style.marginTop = '14px';
     const parts = [`${G.night.name}${nightK !== 1 ? ` · просмотры ×${String(nightK).replace('.', ',')}` : ''}`, `задания ${tasksDone.length} из ${(G.tasks || []).length}${taskMoney ? ` · +${fmt(taskMoney)} ₽` : ''}`];
-    if (donated) parts.push(`донаты +${fmt(donated)} ₽`); if (G.stream && G.stream.peak) parts.push(`пик эфира ${fmt(G.stream.peak)} зрителей`);
+    if (donated) parts.push(`донаты +${fmt(donated)} ₽`); if (G.stream && G.stream.peak) parts.push(`пик эфира ${fmt(G.stream.peak)} зрителей${liveSubs ? `, +${fmt(liveSubs)} подписчиков с эфира` : ''}`);
     d.textContent = parts.join(' · '); st.after(d); setTimeout(() => d.remove(), 60000);
     for (const a of newAch) { const e = document.createElement('p'); e.className = 'note ach'; e.textContent = `Достижение: ${a.name} — ${a.text.toLowerCase()} · +${fmt(a.money)} ₽`; d.after(e); setTimeout(() => e.remove(), 60000); }
   }
-  if (lost) { const d = document.createElement('p'); d.className = 'note'; d.style.marginTop = '14px'; d.textContent = 'Всё, что ты снял и нашёл за эту ночь, осталось внизу. Остались только донаты.'; st.after(d); setTimeout(() => d.remove(), 60000); }
+  if (lost) { const d = document.createElement('p'); d.className = 'note'; d.style.marginTop = '14px'; d.textContent = 'Всё, что ты снял и нашёл за эту ночь, осталось внизу. Остались только донаты и подписчики с эфира.'; st.after(d); setTimeout(() => d.remove(), 60000); }
   if (after > before) { const d = document.createElement('p'); d.className = 'note'; d.style.cssText = 'margin-top:14px;color:var(--ink)'; d.textContent = `Открыта новая карта: ${MAPS[after - 1].title}. И пришло сообщение от подписчика.`; st.after(d); setTimeout(() => d.remove(), 60000); }
   renderResCards(lost);
   startMontage(lost); uploadMedia();
@@ -1738,7 +1752,7 @@ function updateGame(dt, t) {
   // вступление
   if (G.intro > 0) {
     G.intro -= dt; G.flashOn = false;
-    if (G.intro <= 0) { G.intro = 0; $('intro').classList.remove('on'); G.flashOn = true; sound.click(); setObjective(); if (G.ch === 0) hint('look', 'Пока луч фонаря на ней, она не может двигаться.'); if (G.run) hint('phone', 'Q или 2 — достать телефон. ЛКМ — снимок или запись, R — фото или видео, Tab — монтаж выпуска. Чем ближе и страшнее кадр, тем больше просмотров.'); if (G.CH.crawlers) hint('crawl', 'Ползуны идут на свет фонаря. Услышал стрекот — выключи фонарь (F).'); }
+    if (G.intro <= 0) { G.intro = 0; $('intro').classList.remove('on'); G.flashOn = true; sound.click(); setObjective(); if (G.ch === 0) hint('look', 'Пока луч фонаря на ней, она не может двигаться.'); if (G.run) hint('phone', 'Q или 2 — достать телефон. ЛКМ — снимок, запись или эфир, R — фото, видео или эфир, Tab — монтаж выпуска. Чем ближе и страшнее кадр, тем больше просмотров.'); if (G.CH.crawlers) hint('crawl', 'Ползуны идут на свет фонаря. Услышал стрекот — выключи фонарь (F).'); }
   }
   let mv = 0;
   G.stun = Math.max(0, G.stun - dt);
@@ -1855,7 +1869,7 @@ function updateGame(dt, t) {
   netT -= dt;
   if (net && netT <= 0 && !G.solo) {
     netT = 0.1;
-    const msg = { t: 'st', p: [+G.pos.x.toFixed(2), +G.pos.z.toFixed(2)], y: +yaw.toFixed(3), pi: +pitch.toFixed(3), f: (G.flashOn && G.bat > 0 && !G.flickerOff) ? 1 : 0, b: Math.round(G.bat), r: G.running ? 1 : 0, c: G.crouch ? 1 : 0, n: G.noisy ? 1 : 0, sf: hasPerk('soft') ? 1 : 0, ph: G.camMode ? 1 : 0, rc: G.rec ? 1 : 0 };
+    const msg = { t: 'st', p: [+G.pos.x.toFixed(2), +G.pos.z.toFixed(2)], y: +yaw.toFixed(3), pi: +pitch.toFixed(3), f: (G.flashOn && G.bat > 0 && !G.flickerOff) ? 1 : 0, b: Math.round(G.bat), r: G.running ? 1 : 0, c: G.crouch ? 1 : 0, n: G.noisy ? 1 : 0, sf: hasPerk('soft') ? 1 : 0, ph: G.camMode ? 1 : 0, rc: G.rec ? 1 : G.live ? 2 : 0 };
     if (isHost) { msg.host = 1; msg.m = { x: +M.pos.x.toFixed(2), z: +M.pos.z.toFixed(2), r: +M.ry.toFixed(2), fz: M.fz ? 1 : 0, g: M.g ? 1 : 0, fl: M.fl ? 1 : 0, mv: M.moving ? 1 : 0, md: M.mode }; if (G.crawlers.length) msg.m.cr = G.crawlers.map((c) => [+c.pos.x.toFixed(2), +c.pos.z.toFixed(2), +c.ry.toFixed(2), c.alive ? c.mode : -1]); }
     send(msg);
   }

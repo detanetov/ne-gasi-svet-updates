@@ -65,7 +65,7 @@ export const ACH = [
   { id: 'close', name: 'В лицо', text: 'Снять её ближе пяти метров', money: 400, test: (s, r) => r.close },
   { id: 'tasks3', name: 'Всё по заказу', text: 'Выполнить все три задания за вылазку', money: 1500, test: (s, r) => r.allTasks },
   { id: 'cursed', name: 'Проклятый трофей', text: 'Вынести проклятую находку', money: 1000, test: (s, r) => r.cursed },
-  { id: 'stream', name: 'Звезда эфира', text: 'Собрать 5000 зрителей на одной записи', money: 1500, test: (s, r) => r.peak >= 5000 },
+  { id: 'stream', name: 'Звезда эфира', text: 'Собрать 5000 зрителей в прямом эфире', money: 1500, test: (s, r) => r.peak >= 5000 },
   { id: 'donor', name: 'Спонсоры', text: 'Получить 3000 ₽ донатов за вылазку', money: 1000, test: (s, r) => r.donated >= 3000 },
   { id: 'ep10', name: 'Регулярные выпуски', text: 'Десять выпусков', money: 1500, test: (s) => s.episodes >= 10 },
   { id: 'ep50', name: 'Это уже работа', text: 'Пятьдесят выпусков', money: 8000, test: (s) => s.episodes >= 50 },

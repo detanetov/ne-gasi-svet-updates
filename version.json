@@ -1,15 +1,15 @@
 {
- "version": "0.9.0",
+ "version": "0.9.1",
  "minShell": "1.1.0",
- "notes": "На каждой карте свой монстр со своими повадками",
+ "notes": "Прямой эфир — отдельный режим телефона: зрители, чат, донаты и подписчики. Видео снова просто запись для монтажа",
  "files": {
   "icon.png": {
    "sha256": "122987066a6828e7283505447b2a50cec093bc68d231bfce34b5f044dffac8d2",
    "size": 11064
   },
   "index.html": {
-   "sha256": "c8fb1da5964837b9d1897d3973ce9051a18f7e11955cd463bd20da75a3c113a1",
-   "size": 31536
+   "sha256": "a893960bb10c2e299d44a5219c501070319ceda164dc3156a93d7eb0fb6f0330",
+   "size": 31723
   },
   "splash.html": {
    "sha256": "ae16a3d11e02cd2b2377fcafa2e92d21d57008a16772322ecf54c16c350f449d",
@@ -120,12 +120,12 @@
    "size": 21611
   },
   "js/events.js": {
-   "sha256": "61b341a008febd5d4c1b04f3c544d0ce1bf36e94d353d392624926632da1c8d6",
-   "size": 8870
+   "sha256": "7b4e2f9a0853a76b60ca899cad03a361e4b291f28c0150e450412f08ac97b835",
+   "size": 8868
   },
   "js/game.js": {
-   "sha256": "1bc7b43559b7c18c651f470a62496be640bfef61f89eb36e65f34620ca5c9788",
-   "size": 157624
+   "sha256": "e686fa5edab6b021221f503225a8f02906fefe9e625e04b306d3009f23506d6a",
+   "size": 159345
   },
   "js/kits.js": {
    "sha256": "99f7fd61ba2a53e346cea8dd97f917a87a24e70474f6583e69d4b317d0205c63",

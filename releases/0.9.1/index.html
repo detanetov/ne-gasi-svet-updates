@@ -179,6 +179,8 @@
   #phone .side { position: absolute; right: 2.2%; top: 0; bottom: 0; width: 9%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7%; }
   #phone .modes { display: flex; flex-direction: column; gap: 10px; font-size: clamp(9px, .75vw, 12px); letter-spacing: .08em; color: rgba(255,255,255,.55); text-align: center; text-shadow: 0 1px 2px #000; }
   #phone[data-mode=photo] .modes .mp, #phone[data-mode=video] .modes .mv { color: #ffd65a; }
+  #phone[data-mode=live] .modes .ml { color: #ff5a8a; }
+  #phone[data-mode=live] .shut::after { background: #c02a6a; }
   #phone .shut { width: clamp(34px, 3.6vw, 56px); aspect-ratio: 1; border-radius: 50%; border: 3px solid rgba(255,255,255,.9); position: relative; }
   #phone .shut::after { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: #f2f2f2; transition: all .15s; }
   #phone[data-mode=video] .shut::after { background: #d8321f; }
@@ -216,10 +218,10 @@
   <div id="phone" data-mode="photo"><div class="body"><div class="scr">
     <div class="grid"></div><div class="focus"></div>
     <div class="top"><b id="phTime">03:00</b><b id="phRec"></b><b><span id="phMem"></span> · <span id="phBat"></span></b></div>
-    <div class="side"><div class="modes"><span class="mv">ВИДЕО</span><span class="mp">ФОТО</span></div><div class="shut"></div><div class="thumb"><img id="phThumb" alt=""></div></div>
+    <div class="side"><div class="modes"><span class="ml">ЭФИР</span><span class="mv">ВИДЕО</span><span class="mp">ФОТО</span></div><div class="shut"></div><div class="thumb"><img id="phThumb" alt=""></div></div>
     <div class="zoom">1×</div>
     <div id="phLive"></div><div id="phChat"></div>
-    <div class="hint">ЛКМ — снять · R или колесо — фото/видео · Tab — монтаж · Q — убрать</div>
+    <div class="hint">ЛКМ — снять · R или колесо — фото / видео / эфир · Tab — монтаж · Q — убрать</div>
   </div></div></div>
   <div id="gallery"><div class="lbl" id="galHead"></div><div id="galList"></div></div>
   <div id="clock"></div>
@@ -330,7 +332,7 @@
       <b>Ctrl</b>присесть, тише шаги<br>
       <b>G</b>бросить сигнальную шашку<br>
       <b>Q / 2</b>телефон, <b style="min-width:0">ЛКМ</b> снимок или запись<br>
-      <b>R</b>фото или видео<br>
+      <b>R</b>фото, видео или прямой эфир<br>
       <b>Tab</b>монтаж выпуска<br>
       <b>F, ПКМ</b>фонарь<br>
       <b>E</b>взять, поднять друга<br>
