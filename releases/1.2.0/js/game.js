@@ -11,7 +11,7 @@ import { makeMonster, poseMonster, makeCrawler, poseCrawler, BEASTS } from './mo
 import { CHAPTERS, PERKS, TOTAL_NOTES, finalEnding } from './chapters.js';
 import { MAPS, mapsOpen, GOALS } from './maps.js';
 import { makeFurniture } from './kits.js';
-import { pickNight, makeTasks, chatLine, donation, ACH, CLASSES } from './events.js';
+import { pickNight, makeTasks, chatLine, donation, ACH, CLASSES, CONTRACTS, offerContracts, UPGRADES, CONSUMABLES } from './events.js';
 import { makeAvatar as makeAvatar2, poseAvatar, LOOK_OPTIONS, LOOK_GROUPS, randomLook, cleanLook } from './avatar.js';
 import { DEPTH_SUBS, GOAL_SUBS, GEAR, LOOT, MESSAGES, comments, fmt } from './channel.js';
 import { buildVanScene } from './vanscene.js';
@@ -54,6 +54,9 @@ const saveP = () => {
 if (!SAVE.look) SAVE.look = randomLook(); SAVE.look = cleanLook(SAVE.look);
 const hasGear = (k) => SAVE.gear.includes(k);
 const CLS = () => SAVE.cls || 'op';
+const UP = (k) => ((SAVE.up || {})[k] | 0);
+const CONS = (k) => ((SAVE.cons || {})[k] | 0);
+function useCons(k) { SAVE.cons = SAVE.cons || {}; if (!SAVE.cons[k]) return false; SAVE.cons[k]--; saveP(); return true; }
 const hasPerk = (k) => SAVE.perks.includes(k) || hasGear(k) || (k === 'soft' && hasGear('boots')) || (k === 'battery' && (hasGear('torch') || CLS() === 'priest')) || (k === 'medic' && CLS() === 'medic') || (k === 'hands' && CLS() === 'tech') || (k === 'eyes' && CLS() === 'scout');
 if (SAVE.earned == null) SAVE.earned = SAVE.money + (SAVE.gear || []).reduce((a, k) => a + (GEAR[k] ? GEAR[k].price : 0), 0);
 // старые сохранения: глубины открывались по подписчикам, карты — по заработку. Всё, что было открыто, остаётся открытым
@@ -503,25 +506,30 @@ function buildGame(seed, opts = {}) {
 
   G = {
     amb, hemi, seed, ch, CH, maze, world, flash, bounce, haze, flashRig, hand, lens: lensM, dust, dustMat, items, stations, crawlers, flareLights, flareObjs: [], door, doorPos: dpos, monster, phantom, scareLight, slots,
-    run: !!opts.run && !opts.attract, loot: 0, photos: [], memMax: hasGear('film') ? 480 : 240, memUsed: 0, phMode: 'photo', rec: null, phBat: 100, camMode: false, flashT: 0, dawn: 13 * 60, usedAid: false,
+    run: !!opts.run && !opts.attract, loot: 0, photos: [], memMax: (hasGear('film') ? 480 : 240) + UP('memory') * 120, memUsed: 0, phMode: 'photo', rec: null, phBat: 100, camMode: false, flashT: 0, dawn: 13 * 60, usedAid: false,
     collected: 0, stDone: 0, timerEnd: 0, flares: hasGear('flares') && !opts.attract ? 3 : hasPerk('flares') && !opts.attract ? 2 : 0, notes: 0, holdT: 0, stun: 0, noisy: false, weak: false,
-    diff: opts.diff || 0, solo: !!opts.solo, attract: !!opts.attract,
+    diff: opts.diff | 0, hard: (opts.diff | 0) === 2, easy: !(opts.diff | 0) && !opts.attract, ct: opts.ct || 'normal', solo: !!opts.solo, attract: !!opts.attract,
     pos: new THREE.Vector3(), vel: new THREE.Vector3(), bat: 100, stamina: 100, flashOn: true, flickerOff: false, forceOff: 0,
     down: false, fuses: 0, open: false, over: false, time: 0, stepAcc: 0, bob: 0, fear: 0, damage: 0, shake: 0, glitch: 0,
     lastSeen: -99, catchAnim: 0, reviveHold: 0, sendT: 0, pendingPick: -1, intro: 0, dripT: 2,
     players: new Map(),
     sc: { next: 45 + Math.random() * 25, faceNext: 100 + Math.random() * 60, active: null },
-    m: { pos: new THREE.Vector3(), target: new THREE.Vector3(), ry: 0, fz: false, g: true, fl: false, mode: 0, gone: opts.attract ? 0 : (opts.diff ? CH.monster.grace * 0.6 : CH.monster.grace), aggroT: 0, unseenT: 0,
+    m: { pos: new THREE.Vector3(), target: new THREE.Vector3(), ry: 0, fz: false, g: true, fl: false, mode: 0, gone: opts.attract ? 0 : ((opts.diff | 0) === 2 ? CH.monster.grace * 0.6 : (opts.diff | 0) === 0 ? CH.monster.grace + 14 : CH.monster.grace), aggroT: 0, unseenT: 0,
       frozenT: 0, flT: 0, pathT: 0, field: null, dest: null, lostT: 0, firstSpawn: true, moving: false }
   };
   if (G.run) {
+    if (CONS('flare')) { G.flares += SAVE.cons.flare; SAVE.cons.flare = 0; saveP(); }
+    if (G.ct === 'sprint') G.dawn = 5 * 60; else if (G.easy) G.dawn = 15 * 60;
+    if (G.ct === 'hunt') G.huntT = 1e9;
+    if (G.ct === 'treasure') { const R3 = (() => { let z = (seed ^ 0x3c3) >>> 0; return () => { z = (z * 1103515245 + 12345) >>> 0; return z / 4294967296; }; })(); const opens = []; for (let y = 1; y < maze.G - 1; y++) for (let x = 1; x < maze.G - 1; x++) if (!maze.isWall(x, y) && maze.dist[y * maze.G + x] > 10 && maze.dist[y * maze.G + x] < 1e8) opens.push([x, y]); for (let k = 0; k < 3 && opens.length; k++) { const [tx, ty] = opens.splice(Math.floor(R3() * opens.length), 1)[0]; G._treasure = (G._treasure || []).concat([[tx, ty]]); } }
     G.goalDone = !CH.goal; G.ab = { cd: 0 }; G.pings = []; G.evT = 70 + (seed % 40); G.evN = 0;
     if (CH.goal && CH.goal.duo && stations.length) stations[stations.length - 1].duo = true;
     if (CH.goal && CH.goal.kind === 'key') { const [kx, ky] = maze.exit; const km = makeKey(); const c = tileCenter(kx, ky); km.position.set(c.x, waterY, c.z); scene.add(km); items.push({ id: 950, kind: 'key', mesh: km, taken: false, pos: c }); }
     G.hides = makeHides(scene, maze, world, items, seed);
+    if (G.ct === 'rescue') { G.goalDone = false; G.npc = makeNpc(maze, seed); }
     G.selfAv = makeAvatar2(S.nick, SAVE.look); G.selfAv.group.visible = false; scene.add(G.selfAv.group);
     G.selfLight = new THREE.PointLight(0xd8e6ff, 0, 2.2, 1.6); scene.add(G.selfLight); // свет экрана на лицо
-    G.beast = BEH[CH.id] || {}; G.open = false; G.need = Math.min(6, 3 + Math.floor(ch / 3)); resetEpisode(seed);
+    G.beast = BEH[CH.id] || {}; G.open = false; G.need = Math.max(2, Math.min(6, 3 + Math.floor(ch / 3)) - (G.easy ? 1 : 0)); resetEpisode(seed);
     G.night = pickNight(seed, SAVE.episodes);
     G.tasks = makeTasks(seed, { solo: !!opts.solo, crawlers: CH.crawlers, flares: CH.flares || hasGear('flares') });
     G.stream = { viewers: 0, peak: 0, chatT: 0, donated: 0, lines: [] };
@@ -587,6 +595,7 @@ function handle(m, local = false) {
     case 'st': if (G && mode === 'game') onState(m); break;
     case 'md': onMediaMeta(m); break;
     case 'ev': if (G && G.run) applyEvent(m); break;
+    case 'npc': if (G && G.run) applyNpc(m); break;
     case 'ping': if (G && G.run) addPing(m); break;
     case 'prank': if (G && G.run && m.from !== me.id) { const p = new THREE.Vector3(m.p[0], 1.6, m.p[1]); if (p.distanceTo(G.pos) < 30) { sound.distantScream(p); G.shake = Math.max(G.shake, 0.4); } if (isHost && G.m.mode < 2) { G.m.mode = 1; G.m.dest = new THREE.Vector3(m.p[0], 0, m.p[1]); G.m.field = null; } } break;
     case 'ab': if (G && G.run) applyAbility(m); break;
@@ -618,7 +627,8 @@ function onState(m) {
   if (!p) return;
   p.last = performance.now();
   p.moving = Math.hypot(m.p[0] - p.tpos.x, m.p[1] - p.tpos.z) > 0.04;
-  p.tpos.set(m.p[0], 0, m.p[1]); p.tyaw = m.y; p.pitch = m.pi; p.flash = !!m.f; p.running = !!m.r; p.bat = m.b; p.crouch = !!m.c; p.noisy = !!m.n; p.soft = !!m.sf; if (p.rc !== (m.rc | 0)) { p.rc = m.rc | 0; renderTeam(); } p.ph = !!m.ph; p.hd = !!m.hd;
+  p.tpos.set(m.p[0], 0, m.p[1]); p.tyaw = m.y; p.pitch = m.pi; p.flash = !!m.f; p.running = !!m.r; p.bat = m.b; p.crouch = !!m.c; p.noisy = !!m.n; p.soft = !!m.sf; if (p.rc !== (m.rc | 0)) { p.rc = m.rc | 0; renderTeam(); } p.ph = !!m.ph; p.hd = !!m.hd; p.qk = m.qk || 1;
+  if (m.npc && !isHost && G.npc) { G.npc.target.set(m.npc[0], 0, m.npc[1]); G.npc.ry = m.npc[2]; }
   if (m.m && !isHost) {
     const M = G.m; const wasGone = M.g;
     M.target.set(m.m.x, 0, m.m.z); M.ry = m.m.r; M.fz = !!m.m.fz; M.g = !!m.m.g; M.fl = !!m.m.fl; M.moving = !!m.m.mv; M.mode = m.m.md | 0;
@@ -751,7 +761,7 @@ function startGame(m) {
   show('loading'); $('loadTxt').textContent = 'спускаемся';
   setTimeout(() => {
     setupComposerIfNeeded();
-    buildGame(m.seed, { diff: m.diff, solo: m.solo, ch: m.ch | 0, run: m.run !== 0 });
+    buildGame(m.seed, { diff: m.diff, solo: m.solo, ch: m.ch | 0, run: m.run !== 0, ct: m.ct || 'normal' });
     SAVE.ch = m.ch | 0; saveP();
     const list = m.players;
     list.forEach((p, i) => { if (p.id === me.id) { G.pos.copy(spawnPoint(i)); } else addRemote(p.id, p.name, p.color, i, p.look); });
@@ -794,7 +804,7 @@ function startSolo(ch = SAVE.ch) {
   sound.init(); S.nick = ($('nick').value.trim() || S.nick).slice(0, 14); saveS();
   if (net) { net.close(); net = null; }
   isHost = true; lobbyPlayers = [];
-  startGame({ seed: (Math.random() * 1e9) | 0, diff: 0, solo: true, ch, run: 1, players: [{ id: me.id, name: S.nick, color: S.color, look: SAVE.look }] });
+  startGame({ seed: (Math.random() * 1e9) | 0, diff: SAVE.diff ?? 0, ct: hubContract || 'normal', solo: true, ch, run: 1, players: [{ id: me.id, name: S.nick, color: S.color, look: SAVE.look }] });
 }
 function renderMenu() {
   // старые кнопки кампании скрыты: теперь всё через фургон
@@ -887,6 +897,42 @@ function goalDone() {
   if (g.alarm) { G.alarm = true; sound.screech(1.6); G.shake = 1.4; log('ТРЕВОГА. Она знает, где вы. Бегите к фургону', 7000); }
   checkVan(); setObjective();
 }
+// ---------------- Заказ «Спасти зрителя» ----------------
+function makeNpc(maze, seed) {
+  let best = null, bd = -1; const far = maze.exit;
+  for (let y = 1; y < maze.G - 1; y++) for (let x = 1; x < maze.G - 1; x++) { const d = maze.dist[y * maze.G + x]; if (maze.isWall(x, y) || d > 1e8) continue; const fe = Math.abs(x - far[0]) + Math.abs(y - far[1]); const sc = Math.min(d, 60) + Math.min(fe, 12) * 2; if (d > 14 && sc > bd) { bd = sc; best = [x, y]; } }
+  const c = tileCenter(best[0], best[1]);
+  const A = makeAvatar2('', { ...randomLook(), hat: 0, backpack: 0 }, nameSprite('зритель', '#9fe0ff')); A.group.position.copy(c); scene.add(A.group);
+  return { A, pos: c.clone(), target: c.clone(), ry: 0, follow: null, dead: false, trail: [], moving: false };
+}
+function npcNear() { const n = G.npc; return n && !n.dead && !n.follow && Math.hypot(n.pos.x - G.pos.x, n.pos.z - G.pos.z) < 1.7; }
+function hostNpc(dt) {
+  const n = G.npc; if (!n || n.dead || !isHost) return;
+  if (n.follow) {
+    const L = alivePlayers().find((p) => p.id === n.follow);
+    if (!L) { n.follow = null; bc({ t: 'npc', a: 'wait', host: 1 }); return; }
+    const last = n.trail[n.trail.length - 1]; if (!last || Math.hypot(L.pos.x - last.x, L.pos.z - last.z) > 0.35) n.trail.push(L.pos.clone());
+    const dl = Math.hypot(L.pos.x - n.pos.x, L.pos.z - n.pos.z);
+    n.moving = false;
+    if (dl > 1.4 && n.trail.length) { const t = n.trail[0]; const dx = t.x - n.pos.x, dz = t.z - n.pos.z, d = Math.hypot(dx, dz); const sp = dl > 5 ? 5.2 : 3.3; if (d < 0.25) n.trail.shift(); else { const k = Math.min(d, sp * dt); n.pos.x += dx / d * k; n.pos.z += dz / d * k; n.ry = Math.atan2(-dx, -dz); n.moving = true; } }
+    while (n.trail.length > 400) n.trail.shift();
+    if (!G.goalDone && Math.hypot(n.pos.x - G.doorPos.x, n.pos.z - G.doorPos.z) < 4) bc({ t: 'npc', a: 'safe', host: 1 });
+  }
+  const M = G.m; if (!M.g && Math.hypot(M.pos.x - n.pos.x, M.pos.z - n.pos.z) < 0.9) { bc({ t: 'npc', a: 'dead', host: 1 }); M.g = true; M.gone = 10; }
+}
+function applyNpc(m) {
+  const n = G.npc; if (!n) return;
+  if (m.a === 'take') { if (isHost && !n.follow && !n.dead) bc({ t: 'npc', a: 'follow', id: m.from, host: 1 }); }
+  else if (m.a === 'follow') { n.follow = m.id; n.trail = []; log(m.id === me.id ? 'Зритель идёт за тобой. Веди его к фургону' : 'Зритель пошёл за другом', 4000); sound.pickup(); }
+  else if (m.a === 'wait') { n.follow = null; log('Зритель остался ждать на месте', 3000); }
+  else if (m.a === 'safe') { if (!G.goalDone) { G.npcSaved = true; log('Зритель в фургоне! +3000 ₽', 4000); goalDone(); } }
+  else if (m.a === 'dead') { n.dead = true; n.A.group.rotation.x = -1.4; n.A.group.position.y = 0.15; sound.distantScream({ x: n.pos.x, y: 1.5, z: n.pos.z }); log('Она забрала зрителя… Фургон теперь откроют только находки', 5000); G.goalDone = true; checkVan(); setObjective(); }
+}
+function updateNpcVisual(dt) {
+  const n = G.npc; if (!n) return;
+  if (!isHost) { n.moving = n.pos.distanceTo(n.target) > 0.03; n.pos.lerp(n.target, damp(8, dt)); }
+  if (!n.dead) { n.A.group.position.set(n.pos.x, 0, n.pos.z); let dr = n.ry - n.A.group.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); n.A.group.rotation.y += dr * damp(8, dt); poseAvatar(n.A, { moving: n.moving, crouch: !n.follow, dt, relaxed: true }); }
+}
 function checkVan() {
   if (!G || !G.run || G.open) return;
   if (G.collected >= G.need && G.goalDone) { G.open = true; sound.lift(); log('Всё готово для выпуска. Фургон ждёт — можно возвращаться', 6000); }
@@ -977,8 +1023,8 @@ function checkLose() {
 
 function alivePlayers() {
   const out = [];
-  if (!G.down && G.intro <= 0) out.push({ id: me.id, hidden: !!G.hidden, pos: G.pos, yaw, pitch, flash: G.flashOn && G.bat > 0 && !G.flickerOff && G.forceOff <= 0, running: G.running, moving: G.vel.lengthSq() > 0.5, crouch: !!G.crouch, eye: G.eye || 1.62, noisy: G.noisy, soft: hasPerk('soft') });
-  for (const p of G.players.values()) if (!p.down) out.push({ id: p.id, hidden: !!p.hd, pos: p.tpos, yaw: p.tyaw, pitch: p.pitch, flash: p.flash, running: p.running, moving: p.moving, crouch: p.crouch, eye: p.crouch ? 1.0 : 1.6, noisy: p.noisy, soft: p.soft });
+  if (!G.down && G.intro <= 0) out.push({ id: me.id, hidden: !!G.hidden, qk: 1 - UP('quiet') * 0.12, pos: G.pos, yaw, pitch, flash: G.flashOn && G.bat > 0 && !G.flickerOff && G.forceOff <= 0, running: G.running, moving: G.vel.lengthSq() > 0.5, crouch: !!G.crouch, eye: G.eye || 1.62, noisy: G.noisy, soft: hasPerk('soft') });
+  for (const p of G.players.values()) if (!p.down) out.push({ id: p.id, hidden: !!p.hd, qk: p.qk || 1, pos: p.tpos, yaw: p.tyaw, pitch: p.pitch, flash: p.flash, running: p.running, moving: p.moving, crouch: p.crouch, eye: p.crouch ? 1.0 : 1.6, noisy: p.noisy, soft: p.soft });
   return out;
 }
 
@@ -1043,7 +1089,7 @@ function hostMonster(dt) {
     const B = G.beast || {}; const sees = d < (B.sight ? Math.min(B.sight, p.crouch ? 2.2 : B.sight) : p.flash ? (B.sightLit || 22) : p.crouch ? 2.2 : (B.sightDark || 4.5)) && lineOfSight(maze, M.pos, p.pos);
     if (sees && d < sd) { sd = d; seen = p; }
     const wet = !!G.world.water && p.moving;
-    const hears = d < (G.night.hear || 1) * ((G.beast || {}).hear || 1) * (p.noisy ? 20 : p.running ? (p.soft ? 9 : 15) : wet ? (p.crouch ? 3 : 9) : p.moving && !p.crouch ? 4 : 0);
+    const hears = d < (G.night.hear || 1) * ((G.beast || {}).hear || 1) * (G.easy ? 0.75 : 1) * (p.qk || 1) * (p.noisy ? 20 : p.running ? (p.soft ? 9 : 15) : wet ? (p.crouch ? 3 : 9) : p.moving && !p.crouch ? 4 : 0);
     if (hears && M.mode < 2) { M.mode = 1; M.dest = p.pos.clone(); M.field = null; }
   }
   if (seen) { if (M.mode !== 2) M.field = null; M.mode = 2; M.dest = seen.pos.clone(); M.lostT = 0; M.chaseId = seen.id; }
@@ -1059,7 +1105,7 @@ function hostMonster(dt) {
   }
   M.pathT -= dt;
   if (M.pathT <= 0 || !M.field) { const [tx, ty] = toTile(M.dest); M.field = bfs(maze.grid, maze.G, tx, ty); M.pathT = M.mode === 2 ? 0.3 : 1.5; }
-  const speed = (M.creep || 1) * (G.night.speed || 1) * (M.mode === 2 ? MC.speed + ((G.beast || {}).chase || 0) + (G.diff ? 0.6 : 0) + (G.collected + G.stDone) * 0.05 : M.mode === 1 ? 2.6 : 1.4) * (G.weak ? 0.8 : 1);
+  const speed = (M.creep || 1) * (G.night.speed || 1) * (M.mode === 2 ? MC.speed + ((G.beast || {}).chase || 0) + (G.hard ? 0.6 : 0) + (G.collected + G.stDone) * 0.04 : M.mode === 1 ? 2.6 : 1.4) * (G.weak ? 0.8 : 1) * (G.easy ? 0.84 : 1) * (G.ct === 'hunt' ? 0.9 : 1);
   let goal;
   if (M.mode === 2 && seen && sd < TILE * 1.6) goal = seen.pos;
   else {
@@ -1143,7 +1189,7 @@ function hostCrawlers(dt) {
     let goal;
     if (c.mode === 2 && td < TILE * 1.4) goal = tgt.pos;
     else { const [mx, my] = toTile(c.pos); let best = null, bv = c.field[my * G.maze.G + mx]; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const v = c.field[(my + dy) * G.maze.G + mx + dx]; if (v < bv) { bv = v; best = [mx + dx, my + dy]; } } goal = best ? tileCenter(best[0], best[1]) : c.dest; }
-    const sp = c.mode === 2 ? 4.4 + (G.diff ? 0.5 : 0) : c.mode === 1 ? 3 : 1.3;
+    const sp = (G.easy ? 0.85 : 1) * (c.mode === 2 ? 4.4 + (G.hard ? 0.5 : 0) : c.mode === 1 ? 3 : 1.3);
     const dx = goal.x - c.pos.x, dz = goal.z - c.pos.z, d = Math.hypot(dx, dz);
     if (d > 0.05) { if (c.mode === 1 && lure && c.pos.distanceTo(lure.pos) < 1.2) { /* сидит у огня */ } else { const s2 = Math.min(d, sp * dt); c.pos.x += dx / d * s2; c.pos.z += dz / d * s2; c.ry = Math.atan2(-dx, -dz); } }
     for (const p of alive) if (Math.hypot(p.pos.x - c.pos.x, p.pos.z - c.pos.z) < 0.7) {
@@ -1200,6 +1246,8 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Digit3' && G.flares > 0) throwFlare();
   if (G.run && !G.down) {
     if (e.code === 'KeyX') useAbility();
+    if (e.code === 'Digit4') { if (useCons('energy')) { G.adrenT = 10; sound.battery(); log(`Энергетик! Осталось: ${CONS('energy')}`, 2000); } else log('Энергетиков нет — купи в магазине', 1500); }
+    if (e.code === 'Digit5') { if (useCons('beeper')) { const f = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)); let p = G.pos.clone(); for (let i = 0; i < 20; i++) { const q = p.clone().addScaledVector(f, 0.35); if (G.maze.isWall(Math.floor(q.x / TILE), Math.floor(q.z / TILE))) break; p = q; } const m = { t: 'ab', k: 'lure', p: [p.x, p.z], by: me.id }; send(m); applyAbility(m); } else log('Пищалок нет — купи в магазине', 1500); }
     if (e.code === 'KeyZ') doPing();
     if (e.code === 'KeyB' && !G.solo) doPrank();
   }
@@ -1252,7 +1300,7 @@ function scorePhoto0() {
   if (G.phantom.visible) { const d = G.phantom.position.distanceTo(G.pos); if (inFrame(G.phantom.position, 1.6)) consider(4500 - d * 100, 'phantom'); }
   for (const p of G.players.values()) if (p.down) { const d = p.pos.distanceTo(G.pos); if (d < 14 && inFrame(p.pos, 0.3)) consider(7000 - d * 200, 'friend'); }
   for (const h of G.world.hangers) { const d = h.pos.distanceTo(G.pos); if (d < 8 && inFrame(h.pos, 1.8)) consider(250 + (h.dropped ? 300 : 0), 'body'); }
-  best.score = Math.round(best.score * (hasGear('lens') ? 1.5 : 1) * (G.run ? G.CH.mult || 1 : 1 + G.ch * 0.25));
+  best.score = Math.round(best.score * (1 + UP('camera') * 0.12) * (G.ct === 'hunt' && best.cat.startsWith('monster') ? 2 : 1) * (hasGear('lens') ? 1.5 : 1) * (G.run ? G.CH.mult || 1 : 1 + G.ch * 0.25));
   return best;
 }
 // ---------------- Телефон: фото, видео, общий монтаж ----------------
@@ -1348,7 +1396,7 @@ function updatePhone(dt) {
   if (!G.run) return;
   if (G.rec) { G.rec.acc += dt; while (G.rec && G.rec.acc >= 0.5) { G.rec.acc -= 0.5; recFrame(); } }
   if (G.live) { G.live.acc += dt; while (G.live && G.live.acc >= 0.5) { G.live.acc -= 0.5; const res = scorePhoto(); taskShot(res.cat, G.live); streamFrame(res); } }
-  if (G.camMode) { G.phBat = Math.max(0, G.phBat - dt * (G.live ? 0.14 : G.rec ? 0.09 : 0.03)); if (G.phBat <= 0) { log('Телефон сел'); setPhone(false); } }
+  if (G.camMode) { G.phBat = Math.max(0, G.phBat - dt * (G.live ? 0.14 : G.rec ? 0.09 : 0.03) * (1 - UP('phone') * 0.22)); if (G.phBat <= 0) { log('Телефон сел'); setPhone(false); } }
   G._phT = (G._phT || 0) + dt; if (G.camMode && G._phT > 0.25) { G._phT = 0; renderPhone(); }
 }
 // чужие фрагменты: сначала описание (во время вылазки), кадры — после
@@ -1377,7 +1425,7 @@ const EVENTS = ['blackout', 'hunt', 'golden', 'ambush', 'blackout', 'golden'];
 function hostEvents(dt) {
   if (!isHost || G.over) return;
   G.evT -= dt; if (G.evT > 0) return;
-  G.evT = 80 + Math.random() * 70; G.evN++;
+  G.evT = (80 + Math.random() * 70) * (G.easy ? 1.5 : 1); G.evN++;
   const k = EVENTS[Math.floor(Math.random() * EVENTS.length)];
   const m = { t: 'ev', k, n: G.evN, host: 1 };
   if (k === 'golden') { const t = randomOpenTile(G.pos, 6, 18); if (!t) return; const [tx, ty] = toTile(t); m.x = tx; m.y = ty; }
@@ -1390,8 +1438,8 @@ function applyEvent(m) {
     const c = tileCenter(m.x, m.y); const L = { name: 'Золотая находка', value: 1500, shape: 'medal' };
     const mesh = makeLoot(L.shape); mesh.traverse((o) => { if (o.isMesh && o.material && o.material.emissive) { o.material = o.material.clone(); o.material.emissive.setHex(0x8a6a10); o.material.emissiveIntensity = 2; } });
     const gl = new THREE.PointLight(0xffc040, 4, 6, 1.6); gl.position.y = 0.5; mesh.add(gl); mesh.position.set(c.x, 0, c.z); scene.add(mesh);
-    const it = { id: 900 + m.n, kind: 'loot', mesh, taken: false, pos: c, loot: L, gold: G.time + 75 }; G.items.push(it);
-    sound.whisper({ x: c.x, y: 1.5, z: c.z }); log('В рации шёпот: «там что-то блестит»… Золотая находка — 75 секунд', 6000); addPing({ p: [c.x, c.z], by: '', gold: 1 });
+    const it = { id: 900 + m.n, kind: 'loot', mesh, taken: false, pos: c, loot: L, gold: m.quiet ? 1e9 : G.time + 75 }; G.items.push(it);
+    if (!m.quiet) { sound.whisper({ x: c.x, y: 1.5, z: c.z }); log('В рации шёпот: «там что-то блестит»… Золотая находка — 75 секунд', 6000); addPing({ p: [c.x, c.z], by: '', gold: 1 }); }
   } else if (m.k === 'banished') { log('Она исчезла. Ненадолго', 3000); sound.distantScream({ x: G.m.pos.x, y: 1.7, z: G.m.pos.z }); }
   else if (m.k === 'ambush') { log('Тихо. Слишком тихо…', 4000); if (isHost) { const alive = alivePlayers().filter((p) => !p.hidden); const v = alive[Math.floor(Math.random() * alive.length)]; if (v) { const sp = findSpawn([v], 5, 9); if (sp) { const M = G.m; M.pos.copy(sp); M.target.copy(sp); M.g = false; M.mode = 1; M.dest = v.pos.clone(); M.field = null; } } } }
 }
@@ -1440,7 +1488,8 @@ function doPrank() {
   log('Ты закричал. Друзья испугались… и она тоже услышала', 2500);
 }
 function updateExtras(dt) {
-  hostEvents(dt);
+  hostEvents(dt); hostNpc(dt); updateNpcVisual(dt);
+  if (G._treasure && G.time > 1) { G._treasure.forEach(([x, y], k) => applyEvent({ k: 'golden', n: 50 + k, x, y, quiet: 1 })); G._treasure = null; }
   G.huntT = Math.max(0, (G.huntT || 0) - dt); G.adrenT = Math.max(0, (G.adrenT || 0) - dt); G.raidT = Math.max(0, (G.raidT || 0) - dt); G.radarT = Math.max(0, (G.radarT || 0) - dt);
   if (G.ab) G.ab.cd = Math.max(0, G.ab.cd - dt);
   for (const it of G.items) if (it.gold && !it.taken && G.time > it.gold) { it.taken = true; it.mesh.visible = false; log('Золотая находка пропала', 2000); }
@@ -1461,6 +1510,12 @@ function updateExtras(dt) {
     if (!G.m.g) rad += `\nона ${arrow(G.m.pos)} ${Math.round(G.m.pos.distanceTo(G.pos))} м`;
   }
   if ($('radar').textContent !== rad) $('radar').textContent = rad;
+}
+function selfRevives() { return (G.easy && !G.freeUsed ? 1 : 0) + (hasGear('aid') && !G.usedAid ? 1 : 0) + CONS('medkit'); }
+function spendRevive() {
+  if (G.easy && !G.freeUsed) { G.freeUsed = true; log('Второй шанс. Вставай', 3000); }
+  else if (hasGear('aid') && !G.usedAid) { G.usedAid = true; log('Аптечка. Вставай', 3000); }
+  else if (useCons('medkit')) log(`Аптечка. Осталось: ${CONS('medkit')}`, 3000);
 }
 // ---------------- Повадки монстров разных карт ----------------
 const BEH = {
@@ -1616,6 +1671,7 @@ function setHidden(h) {
 function tryInteract() {
   if (G.down || G.over) return;
   if (G.hidden) { setHidden(null); return; }
+  if (G.run && npcNear()) { const m = { t: 'npc', a: 'take' }; if (isHost) applyNpc({ ...m, from: me.id }); else send(m); return; }
   if (G.run && !nearestItem()) { const h = nearestHide(); if (h) { setHidden(h); return; } }
   const it = nearestItem();
   if (it && G.pendingPick !== it.id) {
@@ -1647,7 +1703,8 @@ function setObjective() {
   if (G.run) {
     const g = G.CH.goal; const left = [];
     if (G.collected < G.need) left.push(`находки ${G.collected} из ${G.need}`);
-    if (g && !G.goalDone) left.push(g.kind === 'key' ? `найди ${g.label}` : `${g.label} ${G.stDone} из ${g.n}`);
+    if (G.npc && !G.goalDone) left.push(G.npc.follow ? 'доведи зрителя до фургона' : 'найди потерявшегося зрителя');
+    else if (g && !G.goalDone) left.push(g.kind === 'key' ? `найди ${g.label}` : `${g.label} ${G.stDone} из ${g.n}`);
     t = G.open ? (G.alarm ? 'Бегом к фургону!' : G.collected < (G.CH.collect ? G.CH.collect.n : 0) ? 'Можно к фургону. Или собрать ещё' : 'Всё собрано. Назад к фургону') : 'Нужно: ' + left.join(' · ');
   }
   else if (G.open) t = G.CH.exitLabel === 'клеть' ? 'Клеть ждёт. Найди её' : `Путь открыт. Найди ${G.CH.exitLabel === 'бадья' ? 'бадью' : G.CH.exitLabel}`;
@@ -1701,13 +1758,14 @@ function endRun(win, by) {
   const eps = episodeList(); // весь выпуск: фото и видео всей команды
   eps.forEach((p) => { p.views = Math.round((p.score || 0) * reach); });
   if (!lost && G.tasks) { if (G.cursedTaken) taskSet('cursed', 1); if (G.time <= 360 && G.collected >= 3) taskSet('fast', 1); }
-  const nightK = (G.night.views || 1) * (CLS() === 'op' ? 1.2 : 1);
+  const CT = CONTRACTS[G.ct] || CONTRACTS.normal; const adK = SAVE.ad ? 1.6 : 1; if (SAVE.ad) SAVE.ad = 0;
+  const nightK = (G.night.views || 1) * (CLS() === 'op' ? 1.2 : 1) * (CT.views || 1) * CT.k * adK;
   const views = lost ? 0 : Math.round(eps.reduce((a, p) => a + p.views, 0) * mult * nightK);
   const tasksDone = (G.tasks || []).filter((t) => t.done), taskMoney = lost ? 0 : tasksDone.reduce((a, t) => a + t.money, 0);
   const donated = G.donate || 0; // донаты приходят сразу, их не отнять
   const liveSubs = Math.round((G.stream && G.stream.subs) || 0);
   const newSubs = liveSubs + Math.round(views / 9) + (lost ? 0 : tasksDone.length * Math.round(20 + SAVE.subs * 0.01));
-  const money = (lost ? 0 : Math.round(G.loot + views / 25)) + taskMoney + donated;
+  const money = (lost ? 0 : Math.round((G.loot + views / 25) * CT.k) + (G.npcSaved ? 3000 : 0)) + taskMoney + donated;
   const before = depthsOpen();
   SAVE.subs += newSubs; SAVE.money += money; SAVE.earned = (SAVE.earned || 0) + money; SAVE.episodes++; SAVE.best = Math.max(SAVE.best, views); saveP();
   // гемы за успешную вылазку: 2 + по одному за задание, +1 за дальние карты, +2 за все задания
@@ -1726,7 +1784,7 @@ function endRun(win, by) {
   const stat = (v, l) => { const d = document.createElement('div'); d.innerHTML = '<b></b><span></span>'; d.firstChild.textContent = v; d.lastChild.textContent = l; st.appendChild(d); };
   stat(fmt(views), 'просмотров'); stat('+' + fmt(newSubs), 'подписчиков'); stat(fmt(money) + ' ₽', 'заработано'); stat(fmt(SAVE.subs), 'всего подписчиков');
   { const d = document.createElement('p'); d.className = 'note'; d.style.marginTop = '14px';
-    const parts = [`${G.night.name}${nightK !== 1 ? ` · просмотры ×${String(nightK).replace('.', ',')}` : ''}`, `задания ${tasksDone.length} из ${(G.tasks || []).length}${taskMoney ? ` · +${fmt(taskMoney)} ₽` : ''}`];
+    const parts = [`заказ: ${CT.name}`, `${G.night.name}${nightK !== 1 ? ` · просмотры ×${String(nightK).replace('.', ',')}` : ''}`, `задания ${tasksDone.length} из ${(G.tasks || []).length}${taskMoney ? ` · +${fmt(taskMoney)} ₽` : ''}`];
     if (gems) parts.push(`+${gems} 💎`);
     if (donated) parts.push(`донаты +${fmt(donated)} ₽`); if (G.stream && G.stream.peak) parts.push(`пик эфира ${fmt(G.stream.peak)} зрителей${liveSubs ? `, +${fmt(liveSubs)} подписчиков с эфира` : ''}`);
     d.textContent = parts.join(' · '); st.after(d); setTimeout(() => d.remove(), 60000);
@@ -1742,7 +1800,7 @@ function endRun(win, by) {
 }
 
 // ---------------- Фургон: канал, снаряжение, персонаж ----------------
-let hubDepth = 0;
+let hubDepth = 0, hubContract = 'normal';
 function renderHub() {
   $('chanName').value = SAVE.chan;
   const st = $('hubStats'); st.innerHTML = '';
@@ -1753,6 +1811,11 @@ function renderHub() {
   MAPS.forEach((C, i) => { const b = document.createElement('button'); b.dataset.v = i; b.textContent = i < open ? C.title : `${C.title} · ${fmt(C.earn)} ₽`; if (i >= open) b.disabled = true; box.appendChild(b); });
   pickOpt('depthOpts', String(hubDepth), (v) => { hubDepth = +v; renderDepthNote(); });
   renderDepthNote();
+  pickOpt('soloDiffOpts', String(SAVE.diff ?? 0), (v) => { SAVE.diff = +v; saveP(); });
+  const offers = offerContracts((SAVE.episodes | 0) * 7919 + 13); if (!offers.includes(hubContract)) hubContract = 'normal';
+  const cb = $('ctOpts'); cb.innerHTML = ''; offers.forEach((k) => { const b = document.createElement('button'); b.dataset.v = k; b.textContent = CONTRACTS[k].name; cb.appendChild(b); });
+  const ctNote = () => { $('ctNote').textContent = CONTRACTS[hubContract].text; };
+  pickOpt('ctOpts', hubContract, (v) => { hubContract = v; ctNote(); }); ctNote();
   const mail = $('hubMail'); mail.innerHTML = '';
   for (let i = open - 1; i >= Math.max(0, open - 2); i--) { const M = MAPS[i].msg; const d = document.createElement('div'); d.className = 'm'; d.innerHTML = '<b></b><p></p>'; d.firstChild.textContent = 'сообщение от ' + M.from; d.lastChild.textContent = M.text; mail.appendChild(d); }
   if (SAVE.subs >= GOAL_SUBS) { const d = document.createElement('div'); d.className = 'm'; d.innerHTML = '<b>миллион</b><p>Вы это сделали. Он ждёт вас на последнем горизонте.</p>'; mail.prepend(d); }
@@ -1766,14 +1829,18 @@ function renderDepthNote() {
 function renderShop() {
   $('shopMoney').textContent = `на счету ${fmt(SAVE.money)} ₽`;
   const box = $('shopList'); box.innerHTML = '';
-  for (const [k, g] of Object.entries(GEAR)) {
-    const d = document.createElement('div'); d.className = 'gear'; d.innerHTML = '<div><b></b><span></span></div><button></button>';
-    d.querySelector('b').textContent = g.name; d.querySelector('span').textContent = g.text;
-    const b = d.querySelector('button'); const own = hasGear(k);
-    b.textContent = own ? 'есть' : `${fmt(g.price)} ₽`; b.disabled = own || SAVE.money < g.price;
-    b.onclick = () => { if (SAVE.money < g.price || hasGear(k)) return; SAVE.money -= g.price; SAVE.gear.push(k); saveP(); sound.pickup(); renderShop(); };
-    box.appendChild(d);
-  }
+  const head = (t) => { const h = document.createElement('div'); h.className = 'lbl'; h.style.margin = '18px 0 6px'; h.textContent = t; box.appendChild(h); };
+  const row = (name, text, btn, price, can, buy) => { const d = document.createElement('div'); d.className = 'gear'; d.innerHTML = '<div><b></b><span></span></div><button></button>'; d.querySelector('b').textContent = name; d.querySelector('span').textContent = text; const b = d.querySelector('button'); b.textContent = btn; b.disabled = !can || SAVE.money < price; b.onclick = () => { if (SAVE.money < price || !can) return; SAVE.money -= price; buy(); saveP(); sound.pickup(); renderShop(); }; box.appendChild(d); };
+  head('улучшения — три уровня');
+  SAVE.up = SAVE.up || {};
+  for (const [k, u] of Object.entries(UPGRADES)) { const lv = UP(k), max = lv >= u.prices.length; row(`${u.name} · ${'●'.repeat(lv)}${'○'.repeat(u.prices.length - lv)}`, u.text, max ? 'максимум' : `${fmt(u.prices[lv])} ₽`, max ? 0 : u.prices[lv], !max, () => { SAVE.up[k] = lv + 1; }); }
+  head('расходники — тратятся в вылазке');
+  SAVE.cons = SAVE.cons || {};
+  for (const [k, c] of Object.entries(CONSUMABLES)) row(`${c.name} · есть ${CONS(k)}`, c.text, `${fmt(c.price)} ₽`, c.price, true, () => { SAVE.cons[k] = CONS(k) + 1; });
+  head('канал');
+  row('Реклама выпуска', 'Следующий выпуск увидит больше людей: просмотры ×1,6.', SAVE.ad ? 'оплачено' : '3 000 ₽', 3000, !SAVE.ad, () => { SAVE.ad = 1; });
+  head('снаряжение — навсегда');
+  for (const [k, g] of Object.entries(GEAR)) { const own = hasGear(k); row(g.name, g.text, own ? 'есть' : `${fmt(g.price)} ₽`, g.price, !own, () => { SAVE.gear.push(k); }); }
 }
 // превью персонажа — отдельный маленький рендер
 let PV = null;
@@ -2012,11 +2079,12 @@ function updateGame(dt, t) {
     G.pos.addScaledVector(G.vel, dt);
     collide(G.pos, 0.32);
     G.running = run && mv > 3.5;
-    G.stamina = clamp(G.stamina + (G.running && !(G.adrenT > 0) ? -24 * (hasPerk('lungs') ? 0.66 : 1) : 13) * dt, 0, 100);
+    G.stamina = clamp(G.stamina + (G.running && !(G.adrenT > 0) ? -24 * (hasPerk('lungs') ? 0.66 : 1) * (1 - UP('stamina') * 0.15) * (G.easy ? 0.8 : 1) : 13) * dt, 0, 100);
     G.stepAcc += mv * dt; G.bob += mv * dt * 2.3;
     if (G.stepAcc > (G.running ? 2.0 : G.crouch ? 1.3 : 1.7)) { G.stepAcc = 0; sound.step(G.running, !!G.world.water, G.crouch ? 0.3 : 1); }
   } else G.vel.set(0, 0, 0);
-  if (G.flashOn && !G.down && G.intro <= 0) G.bat = Math.max(0, G.bat - dt * (G.night.bat || 1) * (G.diff ? 1.35 : 1.0) * (hasPerk('battery') ? 0.67 : 1) * (G.ch >= 2 ? 1.15 : 1));
+  if (G.flashOn && !G.down && G.intro <= 0) G.bat = Math.max(0, G.bat - dt * (G.night.bat || 1) * (G.hard ? 1.35 : G.easy ? 0.7 : 1.0) * (hasPerk('battery') ? 0.67 : 1) * (1 - UP('torch') * 0.12) * (G.ch >= 2 ? 1.1 : 1));
+  if (G.run && G.bat < 6 && !G.down && CONS('battery') && useCons('battery')) { G.bat = 100; sound.battery(); log('Запасная батарейка', 2000); }
   G.forceOff = Math.max(0, G.forceOff - dt);
   const mDist = M.g ? 99 : Math.hypot(M.pos.x - G.pos.x, M.pos.z - G.pos.z);
   let flick = false;
@@ -2033,7 +2101,7 @@ function updateGame(dt, t) {
   if (G.run && G.intro <= 0) {
     const left = Math.max(0, G.dawn - G.time); $('clock').textContent = `до рассвета ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
     if (left <= 0 && isHost && !G.over) bc({ t: 'end', win: !!G.open, dawn: 1, host: 1 });
-    if (G.down && hasGear('aid') && !G.usedAid && G.catchAnim <= 0) { G.aidT = (G.aidT || 0) + dt; if (G.aidT > 3) { G.usedAid = true; G.aidT = 0; log('Аптечка. Вставай'); if (isHost) handle({ t: 'revive', id: me.id, from: me.id }, true); else send({ t: 'revive', id: me.id }); } }
+    if (G.down && selfRevives() > 0 && G.catchAnim <= 0) { G.aidT = (G.aidT || 0) + dt; if (G.aidT > 3) { spendRevive(); G.aidT = 0; if (isHost) handle({ t: 'revive', id: me.id, from: me.id }, true); else send({ t: 'revive', id: me.id }); } }
   } else $('clock').textContent = '';
   if (isHost) { hostMonster(dt); if (G.crawlers.length) hostCrawlers(dt); }
   else {
@@ -2106,14 +2174,15 @@ function updateGame(dt, t) {
   }
   $('prompt').innerHTML = prompt;
   $('lockHint').style.display = (mode === 'game' && !G.over && !G.paused && G.intro <= 0 && document.pointerLockElement !== canvas) ? 'block' : 'none';
-  if (G.solo && G.down && !G.over && G.catchAnim <= 0 && !(hasGear('aid') && !G.usedAid && G.run)) { sound.static_(2); endGame(false); }
+  if (G.solo && G.down && !G.over && G.catchAnim <= 0 && !(G.run && selfRevives() > 0)) { sound.static_(2); endGame(false); }
   $('bat').style.width = G.bat + '%'; $('batTxt').textContent = Math.ceil(G.bat) + '%';
   $('bat').style.background = G.bat < 20 ? '#c9573f' : '';
   $('sta').style.width = G.stamina + '%';
   netT -= dt;
   if (net && netT <= 0 && !G.solo) {
     netT = 0.1;
-    const msg = { t: 'st', p: [+G.pos.x.toFixed(2), +G.pos.z.toFixed(2)], y: +yaw.toFixed(3), pi: +pitch.toFixed(3), f: (G.flashOn && G.bat > 0 && !G.flickerOff) ? 1 : 0, b: Math.round(G.bat), r: G.running ? 1 : 0, c: G.crouch ? 1 : 0, n: G.noisy ? 1 : 0, sf: hasPerk('soft') ? 1 : 0, ph: G.camMode ? 1 : 0, rc: G.rec ? 1 : G.live ? 2 : 0, hd: G.hidden ? 1 : 0 };
+    const msg = { t: 'st', p: [+G.pos.x.toFixed(2), +G.pos.z.toFixed(2)], y: +yaw.toFixed(3), pi: +pitch.toFixed(3), f: (G.flashOn && G.bat > 0 && !G.flickerOff) ? 1 : 0, b: Math.round(G.bat), r: G.running ? 1 : 0, c: G.crouch ? 1 : 0, n: G.noisy ? 1 : 0, sf: hasPerk('soft') ? 1 : 0, ph: G.camMode ? 1 : 0, rc: G.rec ? 1 : G.live ? 2 : 0, hd: G.hidden ? 1 : 0, qk: +(1 - UP('quiet') * 0.12).toFixed(2) };
+    if (isHost && G.npc) msg.npc = [+G.npc.pos.x.toFixed(2), +G.npc.pos.z.toFixed(2), +G.npc.ry.toFixed(2)];
     if (isHost) { msg.host = 1; msg.m = { x: +M.pos.x.toFixed(2), z: +M.pos.z.toFixed(2), r: +M.ry.toFixed(2), fz: M.fz ? 1 : 0, g: M.g ? 1 : 0, fl: M.fl ? 1 : 0, mv: M.moving ? 1 : 0, md: M.mode }; if (G.crawlers.length) msg.m.cr = G.crawlers.map((c) => [+c.pos.x.toFixed(2), +c.pos.z.toFixed(2), +c.ry.toFixed(2), c.alive ? c.mode : -1]); }
     send(msg);
   }
@@ -2190,7 +2259,7 @@ function updateVisuals(dt, t) {
   G.hand.visible = (mode === 'game' || mode === 'end') && G.intro <= 0;
   const on = G.flashOn && G.bat > 0 && !G.flickerOff && !G.down;
   const batK = G.bat < 25 ? 0.45 + G.bat / 25 * 0.55 : 1;
-  G.flash.intensity = on ? 110 * batK * (hasGear('torch') ? 1.4 : 1) : 0;
+  G.flash.intensity = on ? 110 * batK * (hasGear('torch') ? 1.4 : 1) * (1 + UP('torch') * 0.15) * (G.ct === 'dark' ? 0.35 : 1) : 0;
   G.bounce.intensity = (on ? 2 * batK : 0) + (G.flashT > 0 ? 60 : 0); G.flashT = Math.max(0, (G.flashT || 0) - dt);
   G.haze.material.uniforms.op.value = on ? 0.45 * batK : 0; G.haze.visible = on && (mode === 'game' || mode === 'end' || mode === 'menu');
   G.lens.emissiveIntensity = on ? 2 * batK : 0;
@@ -2264,6 +2333,7 @@ renderProfile();
 $('bProfile').onclick = () => { setFrom = 'menu'; openSettings(); setTimeout(() => $('nick').focus(), 30); };
 function pickOpt(id, val, cb) { const box = $(id); box.querySelectorAll('button').forEach((b) => { b.classList.toggle('act', b.dataset.v === String(val)); b.onclick = () => { box.querySelectorAll('button').forEach((x) => x.classList.toggle('act', x === b)); sound.tick(); cb(b.dataset.v); }; }); }
 pickOpt('diffOpts', '0', (v) => { $('diff').value = v; });
+pickOpt('lobbyCtOpts', 'normal', (v) => { $('lobbyCt').value = v; });
 $('bPlay').onclick = () => { sound.init(); renderHub(); show('hub'); };
 $('bGoRun').onclick = () => { SAVE.chan = ($('chanName').value.trim() || SAVE.chan).slice(0, 24); saveP(); startSolo(hubDepth); };
 $('chanName').addEventListener('input', () => { SAVE.chan = $('chanName').value.slice(0, 24) || 'Ночной эфир'; saveP(); if (MENU) MENU.setName(SAVE.chan); });
@@ -2325,7 +2395,7 @@ $('bGo').onclick = goOnline;
 $('code').addEventListener('keydown', (e) => { if (e.key === 'Enter') goOnline(); });
 $('ip').addEventListener('keydown', (e) => { if (e.key === 'Enter') goOnline(); });
 $('bBack1').onclick = () => show('menu');
-$('bStart').onclick = () => { if (!isHost) return; bc({ t: 'start', host: 1, seed: (Math.random() * 1e9) | 0, diff: +$('diff').value, ch: +$('lobbyCh').value, run: 1, players: lobbyPlayers.map((p) => ({ id: p.id, name: p.name, color: p.color, look: p.look })) }); };
+$('bStart').onclick = () => { if (!isHost) return; bc({ t: 'start', host: 1, seed: (Math.random() * 1e9) | 0, diff: +$('diff').value, ct: $('lobbyCt').value || 'normal', ch: +$('lobbyCh').value, run: 1, players: lobbyPlayers.map((p) => ({ id: p.id, name: p.name, color: p.color, look: p.look })) }); };
 $('bLeave').onclick = () => leaveToMenu();
 $('bSet').onclick = () => { setFrom = 'menu'; openSettings(); };
 $('bSet2').onclick = () => { setFrom = 'pause'; openSettings(); };
@@ -2338,7 +2408,7 @@ $('bToMenu').onclick = () => leaveToMenu();
 $('bEndMenu').onclick = () => leaveToMenu();
 $('bAgain').onclick = () => {
   if (G.solo || !net) startSolo(G.ch);
-  else if (isHost) { lobbyPlayers = lobbyPlayers.filter((p) => p.id === me.id || G.players.has(p.id)); bc({ t: 'start', host: 1, seed: (Math.random() * 1e9) | 0, diff: G.diff, ch: G.ch, run: 1, players: lobbyPlayers.map((p) => ({ id: p.id, name: p.name, color: p.color, look: p.look })) }); }
+  else if (isHost) { lobbyPlayers = lobbyPlayers.filter((p) => p.id === me.id || G.players.has(p.id)); bc({ t: 'start', host: 1, seed: (Math.random() * 1e9) | 0, diff: G.diff, ct: G.ct, ch: G.ch, run: 1, players: lobbyPlayers.map((p) => ({ id: p.id, name: p.name, color: p.color, look: p.look })) }); }
 };
 $('bQuit').onclick = () => { if (window.native) window.native.quit(); else window.close(); };
 if (!window.native) $('bQuit').style.display = 'none';
@@ -2392,4 +2462,4 @@ addEventListener('pointerdown', unlockAudio); addEventListener('keydown', unlock
 // ---------------- Старт ----------------
 startAttract();
 frame();
-window.__ngs = { SAVE, saveP, score: () => scorePhoto(), photo: () => takePhoto(), shutter: () => shutter(), get EP() { return EP; }, scare: (k) => startScare(k), perf: () => PERF, info: () => renderer.info.render, snap: () => new Promise((r) => { snapReq = r; }), get G() { return G; }, get hostLast() { return performance.now() - hostLast; }, get mode() { return mode; }, me, S, startSolo, keys, setYaw: (y, p) => { yaw = y; pitch = p ?? pitch; }, handle };
+window.__ngs = { SAVE, saveP, startSoloCt: (ch, ct) => { hubContract = ct; startSolo(ch); }, score: () => scorePhoto(), photo: () => takePhoto(), shutter: () => shutter(), get EP() { return EP; }, scare: (k) => startScare(k), perf: () => PERF, info: () => renderer.info.render, snap: () => new Promise((r) => { snapReq = r; }), get G() { return G; }, get hostLast() { return performance.now() - hostLast; }, get mode() { return mode; }, me, S, startSolo, keys, setYaw: (y, p) => { yaw = y; pitch = p ?? pitch; }, handle };

@@ -313,9 +313,10 @@
     <div class="code" id="lobbyCode">----</div>
     <div class="plist" id="plist"></div>
     <div class="field" id="hostOpts"><div class="lbl">сложность</div>
-      <div class="opts" id="diffOpts"><button class="act" data-v="0">обычная</button><button data-v="1">кошмар</button></div>
+      <div class="opts" id="diffOpts"><button class="act" data-v="0">лёгкая</button><button data-v="1">обычная</button><button data-v="2">кошмар</button></div>
       <input type="hidden" id="diff" value="0"></div>
     <div class="field" id="hostCh"><div class="lbl">карта</div><div class="opts" id="lobbyChOpts"></div><input type="hidden" id="lobbyCh" value="0"></div>
+    <div class="field" id="hostCt"><div class="lbl">заказ</div><div class="opts" id="lobbyCtOpts"><button data-v="normal">обычный</button><button data-v="sprint">спринт</button><button data-v="dark">без света</button><button data-v="hunt">охота</button><button data-v="treasure">клад</button><button data-v="rescue">спасти зрителя</button></div><input type="hidden" id="lobbyCt" value="normal"></div>
     <p class="note" id="lobbyNote"></p>
     <nav>
       <button class="item" id="bStart">Начать</button>
@@ -402,6 +403,8 @@
       <div class="stats" id="hubStats"></div>
       <div class="field" style="margin-top:22px"><div class="lbl">куда едем</div><div class="opts" id="depthOpts"></div></div>
       <p class="note" id="depthNote"></p>
+      <div class="field" style="margin-top:14px"><div class="lbl">заказ</div><div class="opts" id="ctOpts"></div><p class="note" id="ctNote" style="margin-top:6px"></p></div>
+      <div class="field"><div class="lbl">сложность</div><div class="opts" id="soloDiffOpts"><button data-v="0">лёгкая</button><button data-v="1">обычная</button><button data-v="2">кошмар</button></div></div>
       <nav>
         <button class="item" id="bGoRun">Ехать на вылазку</button>
         <button class="item small" id="bShop">Снаряжение</button>
