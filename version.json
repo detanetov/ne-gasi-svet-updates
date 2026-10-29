@@ -1,15 +1,15 @@
 {
- "version": "0.9.1",
+ "version": "0.9.2",
  "minShell": "1.1.0",
- "notes": "Прямой эфир — отдельный режим телефона: зрители, чат, донаты и подписчики. Видео снова просто запись для монтажа",
+ "notes": "Фронтальная камера (T): снимай себя на фото, видео и в прямом эфире. Она за спиной — лучший кадр",
  "files": {
   "icon.png": {
    "sha256": "122987066a6828e7283505447b2a50cec093bc68d231bfce34b5f044dffac8d2",
    "size": 11064
   },
   "index.html": {
-   "sha256": "a893960bb10c2e299d44a5219c501070319ceda164dc3156a93d7eb0fb6f0330",
-   "size": 31723
+   "sha256": "6a91810dfa46959025a6ec16313be9bb93e9f15daf64dbe8cedf205e3bc17265",
+   "size": 32148
   },
   "splash.html": {
    "sha256": "ae16a3d11e02cd2b2377fcafa2e92d21d57008a16772322ecf54c16c350f449d",
@@ -112,20 +112,20 @@
    "size": 18306
   },
   "js/channel.js": {
-   "sha256": "9f033b19f9d37eaa49700a5a99a714b0cbd0d3db6413d3479609149edbde371a",
-   "size": 6311
+   "sha256": "5351137579734d10a37c71c5f89b1cedc1c762d71810a60b9484dc033654fe04",
+   "size": 6778
   },
   "js/chapters.js": {
    "sha256": "d10633ae1cdafd1eddd6f7adba5eda8e499604465d068ba1928db2cf5767cabb",
    "size": 21611
   },
   "js/events.js": {
-   "sha256": "7b4e2f9a0853a76b60ca899cad03a361e4b291f28c0150e450412f08ac97b835",
-   "size": 8868
+   "sha256": "8c6ba8809881a112fdbe623d7662f9a13bce18f2453e2afd3db9944009cde889",
+   "size": 9203
   },
   "js/game.js": {
-   "sha256": "e686fa5edab6b021221f503225a8f02906fefe9e625e04b306d3009f23506d6a",
-   "size": 159345
+   "sha256": "71647a550d53bac41667233b255ec543a1021737a8228b5f16d397001ac7a5c4",
+   "size": 162472
   },
   "js/kits.js": {
    "sha256": "99f7fd61ba2a53e346cea8dd97f917a87a24e70474f6583e69d4b317d0205c63",

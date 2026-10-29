@@ -188,6 +188,8 @@
   #phone .thumb { width: clamp(28px, 2.8vw, 44px); aspect-ratio: 1; border-radius: 6px; overflow: hidden; border: 1.5px solid rgba(255,255,255,.7); background: #111; }
   #phone .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   #phone .zoom { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); font-size: clamp(9px, .75vw, 12px); color: #ffd65a; background: rgba(0,0,0,.4); border-radius: 50px; padding: 3px 8px; }
+  #phone .front { position: absolute; left: 50%; top: 4%; transform: translateX(-50%); font-size: clamp(9px, .75vw, 12px); color: rgba(255,255,255,.4); display: none; }
+  #phone.selfie .front { display: block; color: #ffd65a; } #phone.selfie .zoom { display: none; }
   #phone .hint { position: absolute; left: 3%; bottom: 4%; font-size: clamp(9px, .72vw, 11px); color: rgba(255,255,255,.5); text-shadow: 0 1px 2px #000; }
   #team .rc { font-style: normal; color: #e0392c; font-size: 11px; letter-spacing: .08em; animation: blink 1s steps(2) infinite; }
   /* галерея на Tab */
@@ -219,9 +221,9 @@
     <div class="grid"></div><div class="focus"></div>
     <div class="top"><b id="phTime">03:00</b><b id="phRec"></b><b><span id="phMem"></span> · <span id="phBat"></span></b></div>
     <div class="side"><div class="modes"><span class="ml">ЭФИР</span><span class="mv">ВИДЕО</span><span class="mp">ФОТО</span></div><div class="shut"></div><div class="thumb"><img id="phThumb" alt=""></div></div>
-    <div class="zoom">1×</div>
+    <div class="zoom">1×</div><div class="front">фронтальная · T</div>
     <div id="phLive"></div><div id="phChat"></div>
-    <div class="hint">ЛКМ — снять · R или колесо — фото / видео / эфир · Tab — монтаж · Q — убрать</div>
+    <div class="hint">ЛКМ — снять · R или колесо — фото / видео / эфир · T — фронталка · Tab — монтаж · Q — убрать</div>
   </div></div></div>
   <div id="gallery"><div class="lbl" id="galHead"></div><div id="galList"></div></div>
   <div id="clock"></div>
@@ -333,6 +335,7 @@
       <b>G</b>бросить сигнальную шашку<br>
       <b>Q / 2</b>телефон, <b style="min-width:0">ЛКМ</b> снимок или запись<br>
       <b>R</b>фото, видео или прямой эфир<br>
+      <b>T</b>фронтальная камера — снять себя<br>
       <b>Tab</b>монтаж выпуска<br>
       <b>F, ПКМ</b>фонарь<br>
       <b>E</b>взять, поднять друга<br>

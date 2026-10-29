@@ -504,6 +504,8 @@ function buildGame(seed, opts = {}) {
       frozenT: 0, flT: 0, pathT: 0, field: null, dest: null, lostT: 0, firstSpawn: true, moving: false }
   };
   if (G.run) {
+    G.selfAv = makeAvatar2(S.nick, SAVE.look); G.selfAv.group.visible = false; scene.add(G.selfAv.group);
+    G.selfLight = new THREE.PointLight(0xd8e6ff, 0, 2.2, 1.6); scene.add(G.selfLight); // свет экрана на лицо
     G.beast = BEH[CH.id] || {}; G.open = false; G.need = Math.min(6, 3 + Math.floor(ch / 3)); resetEpisode(seed);
     G.night = pickNight(seed, SAVE.episodes);
     G.tasks = makeTasks(seed, { solo: !!opts.solo, crawlers: CH.crawlers, flares: CH.flares || hasGear('flares') });
@@ -1114,6 +1116,7 @@ addEventListener('keydown', (e) => {
     if (e.code === 'KeyQ') setPhone(!G.camMode);
     if (e.code === 'Digit1') setPhone(false);
     if (e.code === 'Digit2') setPhone(true);
+    if (e.code === 'KeyT' && G.camMode) { G.selfie = !G.selfie; sound.click(); renderPhone(); if (G.selfie) hint('selfie', 'Фронтальная камера. Если она окажется у тебя за спиной — это лучший кадр выпуска.'); }
     if (e.code === 'KeyR' && G.camMode) setPhoneMode(({ photo: 'video', video: 'live', live: 'photo' })[G.phMode]);
     if (e.code === 'Tab') { e.preventDefault(); openGallery(true); }
   }
@@ -1132,13 +1135,33 @@ addEventListener('contextmenu', (e) => e.preventDefault());
 
 // ---------------- Камера ----------------
 const _fr = new THREE.Frustum(), _pm = new THREE.Matrix4();
+let SC = camera; // камера, через которую сейчас снимает телефон
+const selfieCam = new THREE.PerspectiveCamera(70, 16 / 9, 0.05, 120);
+// фронталка: телефон в вытянутой руке перед лицом, смотрит на тебя и на то, что за спиной
+function placeSelfie(cam) {
+  const eye = new THREE.Vector3(G.pos.x, camera.position.y, G.pos.z);
+  const f = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch * 0.5), Math.sin(pitch * 0.5), -Math.cos(yaw) * Math.cos(pitch * 0.5));
+  let k = 0.95; for (let i = 0; i < 6; i++) { const p = eye.clone().addScaledVector(f, k); if (!G.maze.isWall(Math.floor(p.x / TILE), Math.floor(p.z / TILE))) break; k *= 0.7; }
+  cam.position.copy(eye).addScaledVector(f, k); cam.position.y += 0.12; cam.position.x += Math.cos(yaw) * 0.08; cam.position.z -= Math.sin(yaw) * 0.08;
+  cam.lookAt(eye.x - f.x * 1.5, eye.y - 0.25, eye.z - f.z * 1.5); cam.fov = 80; cam.aspect = camera.aspect; cam.far = camera.far; cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+}
 function inFrame(pos, h = 1.4) {
-  camera.updateMatrixWorld(); _pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); _fr.setFromProjectionMatrix(_pm);
+  SC.updateMatrixWorld(); _pm.multiplyMatrices(SC.projectionMatrix, SC.matrixWorldInverse); _fr.setFromProjectionMatrix(_pm);
   const v = new THREE.Vector3(pos.x, h, pos.z); if (!_fr.containsPoint(v)) return false;
-  return lineOfSight(G.maze, camera.position, v);
+  return lineOfSight(G.maze, SC.position, v);
 }
 function lightAt(pos, d) { return d < 8 || isLitBy({ pos: G.pos, yaw, pitch, flash: G.flashOn && G.bat > 0, eye: camera.position.y }, pos, 18, 0.5) || inSafeLight(pos, 1); }
 function scorePhoto() {
+  if (G.selfie) { placeSelfie(selfieCam); SC = selfieCam; }
+  const r = scorePhoto0(); SC = camera;
+  if (G.selfie) { // селфи: она за спиной — лучший кадр выпуска; просто лицо — немного
+    if (r.cat === 'monster' || r.cat === 'monster_close' || r.cat === 'phantom') { r.score = Math.round(r.score * 1.8); r.cat = 'selfie_monster'; }
+    else if (r.cat === 'nothing') { r.score = Math.round(60 + Math.random() * 90 + [...G.players.values()].filter((p) => !p.down && inFrameSel(p.pos)).length * 120); r.cat = 'selfie'; }
+  }
+  return r;
+}
+function inFrameSel(pos) { placeSelfie(selfieCam); SC = selfieCam; const v = inFrame(pos, 1.5); SC = camera; return v; }
+function scorePhoto0() {
   let best = { score: 5 + Math.random() * 40, cat: 'nothing' };
   const consider = (score, cat) => { if (score > best.score) best = { score, cat }; };
   const M = G.m;
@@ -1170,13 +1193,14 @@ function setPhone(on) {
   on = on && !G.down;
   if (!on && G.rec) stopRec();
   if (!on && G.live) stopLive();
+  if (!on) G.selfie = false;
   if (G.camMode === on) return;
   G.camMode = on; $('phone').classList.toggle('on', on); $('phoneDim').classList.toggle('on', on); renderPhone(); sound.click();
 }
 function setPhoneMode(m) { if (!G || G.rec || G.live) return; G.phMode = m; renderPhone(); sound.click(); }
 function renderPhone() {
   if (!G) return;
-  $('phone').dataset.mode = G.phMode; $('phone').classList.toggle('rec', !!G.rec || !!G.live);
+  $('phone').dataset.mode = G.phMode; $('phone').classList.toggle('rec', !!G.rec || !!G.live); $('phone').classList.toggle('selfie', !!G.selfie);
   const left = memLeft(), pct = Math.max(0, Math.round(left / G.memMax * 100));
   $('phMem').textContent = `память ${pct}%`;
   $('phBat').textContent = Math.round(G.phBat) + '%';
@@ -1620,7 +1644,13 @@ function frame() {
   updateVisuals(dt, t);
   const T2 = performance.now();
   horrorPass.uniforms.time.value = t;
+  const sf = G.selfie && G.camMode && mode === 'game';
+  if (sf) placeSelfie(selfieCam);
+  if (G.selfLight) { G.selfLight.intensity = sf ? 1.6 : 0; if (sf) G.selfLight.position.copy(selfieCam.position); }
+  if (sf) { renderPass.camera = selfieCam; if (aoPass) aoPass.camera = selfieCam; G.hand.visible = false; }
+  if (G.selfAv) { G.selfAv.group.visible = sf; if (sf) { G.selfAv.group.position.set(G.pos.x, G.world.water ? 0.05 : 0, G.pos.z); G.selfAv.group.rotation.y = yaw; poseAvatar(G.selfAv, { moving: G.vel ? G.vel.length() > 0.3 : false, running: G.running, crouch: G.crouch, down: G.down, pitch, dt, phone: true, rec: !!(G.rec || G.live) }); } }
   if (!NORENDER) composer.render(dt);
+  if (sf) { renderPass.camera = camera; if (aoPass) aoPass.camera = camera; }
   PERF = [T1 - T0, T2 - T1, performance.now() - T2];
   if (snapReq) { const r = snapReq; snapReq = null; r(canvas.toDataURL('image/jpeg', 0.9)); }
   runGrabs();
