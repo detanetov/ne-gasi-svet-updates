@@ -145,12 +145,12 @@ function bodyRaw(x, y, z, P) {
   const pel = ell(x, y, z, 0, 0.95, 0.005, (0.158 + 0.03 * F) * W, 0.1, 0.105 * W);
   const bel = ell(x, y, z, 0, 1.07, -0.005 - fat * 0.02, (0.14 - 0.014 * F + fat * 0.02) * W, 0.11, (0.098 + fat * 0.035) * W);
   const che = ell(x, y, z, 0, 1.27, 0.0, (0.172 - 0.018 * F) * W, 0.148, 0.103 * W);
-  const trp = ell(x, y, z, 0, 1.395, 0.012, 0.15 * W - 0.015 * F, 0.06, 0.07);
+  const trp = ell(x, y, z, 0, 1.405, 0.014, 0.15 * W - 0.015 * F, 0.068, 0.072);
   let tor = smin(smin(bel, che, 0.06), trp, 0.05);
   if (F) { const br = Math.min(sph(ax, y, z, 0.058, 1.255, -0.072, 0.054), sph(ax, y, z, 0.058, 1.255, -0.072, 0.054)); tor = smin(tor, br, 0.03); }
   d = smin(pel, tor, 0.05); TAG = pel < tor ? 2 : 1; TT = 0;
   // шея
-  const nk = cap(x, y, z, 0, 1.42, 0.012, 0, 1.585, 0.006, 0.05 - 0.006 * F, 0.046 - 0.006 * F); if (nk < d) { TAG = 3; TT = T; } d = smin(d, nk, 0.03);
+  const nk = cap(x, y, z, 0, 1.42, 0.012, 0, 1.555, 0.006, 0.053 - 0.006 * F, 0.048 - 0.006 * F); if (nk < d) { TAG = 3; TT = T; } d = smin(d, nk, 0.03);
   // плечи и руки (по стороне x)
   const dl = ell(ax, y, z, 0.182, 1.395, 0.0, 0.058 * W - 0.006 * F, 0.055, 0.055 * W); if (dl < d) { TAG = 8; TT = 0; } d = smin(d, dl, 0.035);
   const ua = cap(ax, y, z, 0.19, 1.385, 0.0, 0.232, 1.125, 0.006, 0.046 * W - 0.004 * F, 0.037 * W - 0.003 * F); t = T; if (ua < d) { TAG = 4; TT = t; } d = smin(d, ua, 0.022);
@@ -206,7 +206,7 @@ function makeBodyGeo(L) {
 const B = { root: 0, hips: 1, spine: 2, chest: 3, neck: 4, head: 5, sh: [6, 10], ua: [7, 11], fa: [8, 12], hand: [9, 13], ul: [14, 17], ll: [15, 18], foot: [16, 19] };
 function makeSkeleton() {
   const bones = []; const mk = (parent, x, y, z) => { const b = new THREE.Bone(); bones.push(b); if (parent) { parent.add(b); b.position.set(x - parent.userData.w[0], y - parent.userData.w[1], z - parent.userData.w[2]); } else b.position.set(x, y, z); b.userData.w = [x, y, z]; return b; };
-  const root = mk(null, 0, 0, 0), hips = mk(root, 0, 0.95, 0), spine = mk(hips, 0, 1.08, 0), chest = mk(spine, 0, 1.27, 0), neck = mk(chest, 0, 1.45, 0.01), head = mk(neck, 0, 1.568, 0.006);
+  const root = mk(null, 0, 0, 0), hips = mk(root, 0, 0.95, 0), spine = mk(hips, 0, 1.08, 0), chest = mk(spine, 0, 1.27, 0), neck = mk(chest, 0, 1.44, 0.01), head = mk(neck, 0, 1.538, 0.006);
   const arm = (s) => { const sh = mk(chest, s * 0.15, 1.4, 0); const ua = mk(sh, s * 0.19, 1.385, 0); const fa = mk(ua, s * 0.232, 1.125, 0.006); const hd = mk(fa, s * 0.258, 0.885, -0.004); return { sh, ua, fa, hd }; };
   const aL = arm(-1), aR = arm(1);
   const leg = (s) => { const ul = mk(hips, s * 0.094, 0.93, 0); const ll = mk(ul, s * 0.1, 0.5, -0.006); const ft = mk(ll, s * 0.104, 0.1, 0.01); return { ul, ll, ft }; };
